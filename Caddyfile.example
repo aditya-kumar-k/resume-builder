@@ -1,0 +1,4 @@
+# Replace with your domain, then: sudo cp Caddyfile.example /etc/caddy/Caddyfile && sudo systemctl reload caddy
+resume.example.com {
+	reverse_proxy 127.0.0.1:3100
+}
