@@ -106,9 +106,18 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
       for (const g of groups) {
         const lbl = g.label.trim();
         const labelText = lbl ? (lbl.endsWith(":") ? `${lbl} ` : `${lbl}: `) : "";
-        const children = [];
+        const cleanItems = g.items.replace(/\s*[\r\n]+\s*/g, " ").trim();
+        const children: ParagraphChild[] = [];
         if (labelText) children.push(run(labelText, "itemTitle", { color: itemTitleColor }));
-        children.push(run(g.items, "body"));
+        const runs = parseLineRuns(cleanItems);
+        for (const r of runs) {
+          if (r.text === "\n") {
+            children.push(new TextRun({ break: 1 }));
+          } else {
+            const t = run(r.text, "body", { bold: r.bold || undefined, italics: r.italic || undefined, underline: r.underline });
+            children.push(r.href ? new ExternalHyperlink({ link: r.href, children: [t] }) : t);
+          }
+        }
         body.push(new Paragraph({ alignment: align, spacing: { after: 60 }, children }));
       }
       return;

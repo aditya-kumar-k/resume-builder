@@ -125,10 +125,11 @@ export function Preview({ r }: { r: Resume }) {
           {groups.map((g, gi) => {
             const lbl = g.label.trim();
             const labelText = lbl ? (lbl.endsWith(":") ? `${lbl} ` : `${lbl}: `) : "";
+            const cleanItems = g.items.replace(/\s*[\r\n]+\s*/g, " ").trim();
             const line = (
               <div style={{ marginBottom: px(4), textAlign: align, ...F("body") }}>
                 {labelText ? <span style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{labelText}</span> : null}
-                {g.items}
+                {renderRuns(parseLineRuns(cleanItems))}
               </div>
             );
             return (

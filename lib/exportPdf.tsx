@@ -131,10 +131,11 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
           {groups.map((g, gi) => {
             const lbl = g.label.trim();
             const labelText = lbl ? (lbl.endsWith(":") ? `${lbl} ` : `${lbl}: `) : "";
+            const cleanItems = g.items.replace(/\s*[\r\n]+\s*/g, " ").trim();
             const line = (
-              <Text key={g.id} style={{ marginBottom: 4, textAlign: align }}>
+              <Text key={g.id} style={{ marginBottom: 4, textAlign: align, ...F("body") }}>
                 {labelText ? <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{labelText}</Text> : null}
-                <Text style={F("body")}>{g.items}</Text>
+                {renderPdfRuns(parseLineRuns(cleanItems))}
               </Text>
             );
             return gi === 0 ? (
