@@ -5,7 +5,7 @@ export type TemplateConfig = {
   name: string;
   description: string;
   heading: "caps" | "rule" | "bar";
-  defaults: Pick<Style, "font" | "base" | "gap" | "accent">;
+  defaults: Pick<Style, "font" | "base" | "gap" | "accent" | "sectionTitleColor" | "ruleColor" | "itemTitleColor">;
 };
 
 export const TEMPLATES: Record<TemplateId, TemplateConfig> = {
@@ -13,21 +13,46 @@ export const TEMPLATES: Record<TemplateId, TemplateConfig> = {
     name: "Band",
     description: "Grey header band, bold caps headings with a heavy rule.",
     heading: "caps",
-    defaults: { font: "sans", base: 10, gap: 14, accent: "#9ca3af" },
+    defaults: { font: "sans", base: 10, gap: 14, accent: "#9ca3af", sectionTitleColor: "#111827", ruleColor: "#9ca3af", itemTitleColor: "#111827" },
   },
   plain: {
     name: "Plain",
     description: "Serif, coloured headings with a thin rule.",
     heading: "rule",
-    defaults: { font: "serif", base: 10.5, gap: 14, accent: "#1f4e79" },
+    defaults: { font: "serif", base: 10.5, gap: 14, accent: "#1f4e79", sectionTitleColor: "#1f4e79", ruleColor: "#1f4e79", itemTitleColor: "#111827" },
   },
   compact: {
     name: "Compact",
     description: "Dense, filled heading bars. Fits more on a page.",
     heading: "bar",
-    defaults: { font: "sans", base: 9, gap: 9, accent: "#1f4e79" },
+    defaults: { font: "sans", base: 9, gap: 9, accent: "#1f4e79", sectionTitleColor: "#ffffff", ruleColor: "#1f4e79", itemTitleColor: "#111827" },
   },
 };
+
+export type ResolvedColors = {
+  sectionTitleColor: string;
+  ruleColor: string;
+  itemTitleColor: string;
+};
+
+export function resolveColors(st: Pick<Style, "template" | "accent" | "headingRule" | "sectionTitleColor" | "ruleColor" | "itemTitleColor">): ResolvedColors {
+  const ruleColor = st.ruleColor || st.accent || (st.template === "band" ? "#9ca3af" : "#1f4e79");
+
+  let sectionTitleColor = st.sectionTitleColor;
+  if (!sectionTitleColor) {
+    if (st.template === "plain") {
+      sectionTitleColor = st.accent || "#1f4e79";
+    } else if (st.template === "compact") {
+      sectionTitleColor = st.headingRule ? "#ffffff" : (st.accent || "#1f4e79");
+    } else {
+      sectionTitleColor = (st.accent && st.accent.toLowerCase() !== "#9ca3af") ? st.accent : "#111827";
+    }
+  }
+
+  const itemTitleColor = st.itemTitleColor || "#111827";
+
+  return { sectionTitleColor, ruleColor, itemTitleColor };
+}
 
 export const uid = () => Math.random().toString(36).slice(2, 10);
 

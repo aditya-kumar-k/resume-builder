@@ -21,7 +21,12 @@ const BLOCK_TAGS = new Set(["p", "div", "ul", "ol", "section", "article"]);
 const HEADINGS = new Set(["h1", "h2", "h3", "h4", "h5", "h6"]);
 
 export function parseRich(src: string): Block[] {
-  const clean = src.replace(/\r/g, "").replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "").replace(/<!--[\s\S]*?-->/g, "");
+  let clean = src.replace(/\r/g, "").replace(/<(script|style)\b[\s\S]*?<\/\1\s*>/gi, "").replace(/<!--[\s\S]*?-->/g, "");
+  clean = clean
+    .replace(/\*\*([^*]+?)\*\*/g, "<b>$1</b>")
+    .replace(/__([^_]+?)__/g, "<u>$1</u>")
+    .replace(/(?<!\*)\*([^*]+?)\*(?!\*)/g, "<i>$1</i>")
+    .replace(/(?<!_)_([^_]+?)_(?!_)/g, "<i>$1</i>");
   const blocks: Block[] = [];
   let runs: Run[] = [];
   let bullet = false;
@@ -85,3 +90,16 @@ export function parseRich(src: string): Block[] {
 
 /** Long paragraphs may split across pages; short blocks stay whole. */
 export const isShortBlock = (blk: Block) => blk.runs.reduce((n, r) => n + r.text.length, 0) <= 400;
+
+/** Parses a single bullet line into rich-text runs (supporting <b>, <i>, <u>, <a>, and markdown). */
+export function parseLineRuns(src: string): Run[] {
+  if (!src) return [];
+  const blocks = parseRich(src);
+  if (!blocks.length) return [{ text: src }];
+  const runs: Run[] = [];
+  blocks.forEach((b, idx) => {
+    if (idx > 0) runs.push({ text: " " });
+    runs.push(...b.runs);
+  });
+  return runs.length ? runs : [{ text: src }];
+}

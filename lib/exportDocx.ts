@@ -3,8 +3,8 @@ import type { ParagraphChild } from "docx";
 import type { Resume, Section, TextAlign } from "./types";
 import { FONTS, fontFor, variantOf } from "./fonts";
 import type { FontRole } from "./types";
-import { parseRich } from "./richtext";
-import { TEMPLATES, bulletLines, headerItems, headingGapOf, showHeadingRule, titleSeparator } from "./templates";
+import { parseLineRuns, parseRich } from "./richtext";
+import { TEMPLATES, bulletLines, headerItems, headingGapOf, resolveColors, showHeadingRule, titleSeparator } from "./templates";
 
 const hex = (c: string) => c.replace("#", "").toUpperCase();
 const TWIPS_PER_MM = 1440 / 25.4;
@@ -28,7 +28,10 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
   const { style: st } = r;
   const t = TEMPLATES[st.template];
   const size = Math.round(st.base * 2);
-  const accent = hex(st.accent);
+  const colors = resolveColors(st);
+  const ruleColor = hex(colors.ruleColor);
+  const sectionTitleColor = hex(colors.sectionTitleColor);
+  const itemTitleColor = hex(colors.itemTitleColor);
   const fill = st.band ? hex(st.bandColor) : undefined;
   const shading = fill ? { type: ShadingType.CLEAR, fill, color: "auto" } : undefined;
   /** A run in the font chosen for its kind of text; bold and italics follow the role unless overridden. */
@@ -50,12 +53,12 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
     new Paragraph({
       spacing: { before: Math.round(st.gap * 20), after: Math.round(below * 20) },
       keepNext: true,
-      border: rule && t.heading !== "bar" ? { bottom: { style: BorderStyle.SINGLE, size: t.heading === "caps" ? 12 : 6, color: accent, space: 1 } } : undefined,
-      shading: rule && t.heading === "bar" ? { type: ShadingType.CLEAR, fill: accent, color: "auto" } : undefined,
+      border: rule && t.heading !== "bar" ? { bottom: { style: BorderStyle.SINGLE, size: t.heading === "caps" ? 12 : 6, color: ruleColor, space: 1 } } : undefined,
+      shading: rule && t.heading === "bar" ? { type: ShadingType.CLEAR, fill: ruleColor, color: "auto" } : undefined,
       children: [
         run(t.heading === "caps" || t.heading === "bar" ? text.toUpperCase() : text, "heading", {
           size: size + 2,
-          color: t.heading === "rule" ? accent : t.heading === "bar" && rule ? "FFFFFF" : undefined,
+          color: sectionTitleColor,
         }),
       ],
     });
@@ -100,7 +103,14 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
       const groups = sec.groups.filter((g) => g.items.trim());
       if (!groups.length) return;
       body.push(heading(sec.title, showHeadingRule(st, sec), headingGapOf(st, sec)));
-      for (const g of groups) body.push(new Paragraph({ alignment: align, spacing: { after: 60 }, children: [run(`${g.label.toUpperCase()}: `, "itemTitle"), run(g.items, "body")] }));
+      for (const g of groups) {
+        const lbl = g.label.trim();
+        const labelText = lbl ? (lbl.endsWith(":") ? `${lbl} ` : `${lbl}: `) : "";
+        const children = [];
+        if (labelText) children.push(run(labelText, "itemTitle", { color: itemTitleColor }));
+        children.push(run(g.items, "body"));
+        body.push(new Paragraph({ alignment: align, spacing: { after: 60 }, children }));
+      }
       return;
     }
     if (!sec.items.length) return;
@@ -109,7 +119,7 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
       const itemAlign = toDocxAlign(it.align ?? sec.textAlign ?? "left");
       const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
       const inline = isInline && !!it.subtitle;
-      const titleRun = run(`${it.title}${inline ? titleSeparator(sec.separator) : ""}`, "itemTitle");
+      const titleRun = run(`${it.title}${inline ? titleSeparator(sec.separator) : ""}`, "itemTitle", { color: itemTitleColor });
       const left: ParagraphChild[] = [it.link ? new ExternalHyperlink({ link: it.link, children: [titleRun] }) : titleRun];
       if (inline) left.push(run(` ${it.subtitle}`, "subtitle"));
       if (it.date) left.push(run(`\t${it.date}`, "date", { color: "555555" }));
@@ -122,7 +132,15 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
         }),
       );
       if (!inline && it.subtitle) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle, "subtitle")] }));
-      for (const b of bulletLines(it.bullets)) body.push(new Paragraph({ alignment: itemAlign, bullet: { level: 0 }, children: [run(b, "body")] }));
+      for (const b of bulletLines(it.bullets)) {
+        const runs = parseLineRuns(b);
+        const children: ParagraphChild[] = runs.map((r) => {
+          if (r.text === "\n") return new TextRun({ break: 1 });
+          const t = run(r.text, "body", { bold: r.bold || undefined, italics: r.italic || undefined, underline: r.underline });
+          return r.href ? new ExternalHyperlink({ link: r.href, children: [t] }) : t;
+        });
+        body.push(new Paragraph({ alignment: itemAlign, bullet: { level: 0 }, children }));
+      }
     }
   };
   r.sections.forEach(section);

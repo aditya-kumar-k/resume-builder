@@ -4,9 +4,9 @@ import type { CSSProperties, ReactNode } from "react";
 import type { Resume, Section } from "@/lib/types";
 import { cssFont } from "@/lib/fonts";
 import { sectionIconId } from "@/lib/icons";
-import { TEMPLATES, bulletLines, headerItems, headingGapOf, showHeadingRule, titleSeparator } from "@/lib/templates";
-import { isShortBlock, parseRich } from "@/lib/richtext";
-import type { Block } from "@/lib/richtext";
+import { TEMPLATES, bulletLines, headerItems, headingGapOf, resolveColors, showHeadingRule, titleSeparator } from "@/lib/templates";
+import { isShortBlock, parseLineRuns, parseRich } from "@/lib/richtext";
+import type { Block, Run } from "@/lib/richtext";
 import { Icon } from "./Icon";
 
 const PAGE_H = 1123;
@@ -53,6 +53,8 @@ export function Preview({ r }: { r: Resume }) {
     };
   });
 
+  const colors = resolveColors(st);
+
   const heading = (text: string, iconId: string | null, rule: boolean, below: number): ReactNode => {
     const s: CSSProperties = {
       ...F("heading"),
@@ -61,11 +63,12 @@ export function Preview({ r }: { r: Resume }) {
       gap: px(5),
       margin: `${px(st.gap)} 0 ${px(below)}`,
       fontSize: px(st.base * 1.05),
+      color: colors.sectionTitleColor,
     };
     // Without its line, a heading is plain text; the "bar" style has no bar left, so it reads as bold text.
-    if (t.heading === "caps") Object.assign(s, { textTransform: "uppercase" }, rule ? { borderBottom: `${px(2)} solid ${st.accent}`, paddingBottom: px(2) } : {});
-    if (t.heading === "rule") Object.assign(s, { color: st.accent }, rule ? { borderBottom: `${px(0.8)} solid ${st.accent}`, paddingBottom: px(2) } : {});
-    if (t.heading === "bar" && rule) Object.assign(s, { background: st.accent, color: "#fff", padding: `${px(2)} ${px(4)}` });
+    if (t.heading === "caps") Object.assign(s, { textTransform: "uppercase" }, rule ? { borderBottom: `${px(2)} solid ${colors.ruleColor}`, paddingBottom: px(2) } : {});
+    if (t.heading === "rule") Object.assign(s, { color: colors.sectionTitleColor }, rule ? { borderBottom: `${px(0.8)} solid ${colors.ruleColor}`, paddingBottom: px(2) } : {});
+    if (t.heading === "bar" && rule) Object.assign(s, { background: colors.ruleColor, color: colors.sectionTitleColor, padding: `${px(2)} ${px(4)}` });
     return (
       <div style={s}>
         {st.sectionIcons && iconId ? <Icon id={iconId} size={st.base * 1.333 * 1.1} /> : null}
@@ -74,15 +77,18 @@ export function Preview({ r }: { r: Resume }) {
     );
   };
 
-  /** One block of the Text section: runs with bold, italic, underline and links, or a bullet row. */
-  const richBlock = (blk: Block, index: number, align: CSSProperties["textAlign"] = "left"): ReactNode => {
-    const runs = blk.runs.map((r, k) => {
+  const renderRuns = (runs: Run[]): ReactNode =>
+    runs.map((r, k) => {
       if (r.text === "\n") return <br key={k} />;
       const v = r.bold ? "bold" : r.italic ? "italic" : undefined;
       const style: CSSProperties = { ...(v ? F("body", v) : {}), ...(r.underline ? { textDecoration: "underline" } : {}) };
       const text = <span key={k} style={style}>{r.text}</span>;
       return r.href ? <a key={k} href={r.href} style={{ color: "inherit", textDecoration: "none" }}>{text}</a> : text;
     });
+
+  /** One block of the Text section: runs with bold, italic, underline and links, or a bullet row. */
+  const richBlock = (blk: Block, index: number, align: CSSProperties["textAlign"] = "left"): ReactNode => {
+    const runs = renderRuns(blk.runs);
     return blk.bullet ? (
       <div style={{ display: "flex", marginTop: px(1), ...F("body") }}>
         <span style={{ width: px(10), flex: "0 0 auto" }}>•</span>
@@ -117,9 +123,12 @@ export function Preview({ r }: { r: Resume }) {
       return (
         <div key={sec.id} style={{ display: "flow-root" }}>
           {groups.map((g, gi) => {
+            const lbl = g.label.trim();
+            const labelText = lbl ? (lbl.endsWith(":") ? `${lbl} ` : `${lbl}: `) : "";
             const line = (
               <div style={{ marginBottom: px(4), textAlign: align, ...F("body") }}>
-                <span style={F("itemTitle")}>{g.label.toUpperCase()}: </span>{g.items}
+                {labelText ? <span style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{labelText}</span> : null}
+                {g.items}
               </div>
             );
             return (
@@ -144,7 +153,11 @@ export function Preview({ r }: { r: Resume }) {
           const ul = (list: string[]) =>
             list.length > 0 && (
               <ul style={{ margin: 0, paddingLeft: px(10) }}>
-                {list.map((b, i) => <li key={i} data-keep style={{ marginTop: px(1), textAlign: itemAlign }}>{b}</li>)}
+                {list.map((b, i) => (
+                  <li key={i} data-keep style={{ marginTop: px(1), textAlign: itemAlign }}>
+                    {renderRuns(parseLineRuns(b))}
+                  </li>
+                ))}
               </ul>
             );
           const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
@@ -153,7 +166,7 @@ export function Preview({ r }: { r: Resume }) {
               {index === 0 ? h : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span>
-                  <span style={F("itemTitle")}>{title}{isInline && it.subtitle ? titleSeparator(sec.separator) : ""}</span>
+                  <span style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{title}{isInline && it.subtitle ? titleSeparator(sec.separator) : ""}</span>
                   {isInline && it.subtitle ? <span style={F("subtitle")}> {it.subtitle}</span> : null}
                 </span>
                 <span style={{ color: "#555", whiteSpace: "nowrap", ...F("date") }}>{it.date}</span>

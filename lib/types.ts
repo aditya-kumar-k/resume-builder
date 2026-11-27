@@ -55,6 +55,12 @@ export type SectionType = Section["type"];
 export type Style = {
   template: TemplateId;
   accent: string;
+  /** Section heading text color (defaults to template preset). */
+  sectionTitleColor?: string;
+  /** Separator / rule line under section headings (defaults to accent). */
+  ruleColor?: string;
+  /** Entry titles and skill group labels color (defaults to dark / accent). */
+  itemTitleColor?: string;
   font: FontId;
   /** Text alignment (legacy or fallback). */
   textAlign?: TextAlign;

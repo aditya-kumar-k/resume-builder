@@ -3,9 +3,9 @@ import { Circle, Document, Ellipse, Font, G, Line, Link, Page, Path, Polygon, Po
 import type { Resume, Section } from "./types";
 import { pdfFontFor, registerPdfFonts } from "./fonts";
 import { ICONS, sectionIconId } from "./icons";
-import { isShortBlock, parseRich } from "./richtext";
-import type { Block } from "./richtext";
-import { TEMPLATES, bulletLines, headerItems, headingGapOf, showHeadingRule, titleSeparator } from "./templates";
+import { isShortBlock, parseLineRuns, parseRich } from "./richtext";
+import type { Block, Run } from "./richtext";
+import { TEMPLATES, bulletLines, headerItems, headingGapOf, resolveColors, showHeadingRule, titleSeparator } from "./templates";
 
 Font.registerHyphenationCallback((word) => [word]);
 
@@ -50,17 +50,19 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
     item: { marginBottom: 6 },
   });
 
+  const colors = resolveColors(st);
+
   // Without its line a heading is plain text; the "bar" style has no bar left, so it reads as bold text.
   const Heading = ({ text, iconId, rule, below }: { text: string; iconId: string | null; rule: boolean; below: number }) => {
     const headingBox = {
       marginBottom: below,
       flexDirection: "row" as const,
       alignItems: "center" as const,
-      ...(rule && t.heading === "caps" ? { borderBottomWidth: 2, borderBottomColor: st.accent, paddingBottom: 2 } : {}),
-      ...(rule && t.heading === "rule" ? { borderBottomWidth: 0.8, borderBottomColor: st.accent, paddingBottom: 2 } : {}),
-      ...(rule && t.heading === "bar" ? { backgroundColor: st.accent, paddingHorizontal: 4, paddingVertical: 2 } : {}),
+      ...(rule && t.heading === "caps" ? { borderBottomWidth: 2, borderBottomColor: colors.ruleColor, paddingBottom: 2 } : {}),
+      ...(rule && t.heading === "rule" ? { borderBottomWidth: 0.8, borderBottomColor: colors.ruleColor, paddingBottom: 2 } : {}),
+      ...(rule && t.heading === "bar" ? { backgroundColor: colors.ruleColor, paddingHorizontal: 4, paddingVertical: 2 } : {}),
     };
-    const headingColor = t.heading === "bar" && rule ? "#ffffff" : t.heading === "rule" ? st.accent : "#1a1a1a";
+    const headingColor = colors.sectionTitleColor;
     return (
       <View style={headingBox}>
         {st.sectionIcons && iconId ? (
@@ -77,15 +79,18 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
     const rule = showHeadingRule(st, sec);
     const below = headingGapOf(st, sec);
     const align = (sec.textAlign ?? st.textAlign ?? "left") as "left" | "right" | "center" | "justify";
+    const renderPdfRuns = (runs: Run[]) =>
+      runs.map((r, k) => {
+        const v = r.bold ? "bold" : r.italic ? "italic" : undefined;
+        const text = <Text key={k} style={{ ...(v ? F("body", v) : {}), ...(r.underline ? { textDecoration: "underline" as const } : {}) }}>{r.text}</Text>;
+        return r.href ? <Link key={k} src={r.href} style={{ color: "#1a1a1a", textDecoration: "none" }}>{text}</Link> : text;
+      });
+
     if (sec.type === "text") {
       const blocks = parseRich(sec.body);
       if (!blocks.length) return null;
       const richBlock = (blk: Block, index: number) => {
-        const runs = blk.runs.map((r, k) => {
-          const v = r.bold ? "bold" : r.italic ? "italic" : undefined;
-          const text = <Text key={k} style={{ ...(v ? F("body", v) : {}), ...(r.underline ? { textDecoration: "underline" as const } : {}) }}>{r.text}</Text>;
-          return r.href ? <Link key={k} src={r.href} style={{ color: "#1a1a1a", textDecoration: "none" }}>{text}</Link> : text;
-        });
+        const runs = renderPdfRuns(blk.runs);
         return blk.bullet ? (
           <View style={s.bullet}>
             <Text style={s.dot}>•</Text>
@@ -124,9 +129,11 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
       return (
         <View key={sec.id} style={s.section}>
           {groups.map((g, gi) => {
+            const lbl = g.label.trim();
+            const labelText = lbl ? (lbl.endsWith(":") ? `${lbl} ` : `${lbl}: `) : "";
             const line = (
               <Text key={g.id} style={{ marginBottom: 4, textAlign: align }}>
-                <Text style={F("itemTitle")}>{g.label.toUpperCase()}: </Text>
+                {labelText ? <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{labelText}</Text> : null}
                 <Text style={F("body")}>{g.items}</Text>
               </Text>
             );
@@ -149,12 +156,14 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
           const itemAlign = (it.align ?? align) as "left" | "right" | "center" | "justify";
           const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
           const inline = isInline && !!it.subtitle;
-          const titleText = <Text style={F("itemTitle")}>{it.title}{inline ? titleSeparator(sec.separator) : ""}</Text>;
+          const titleText = <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{it.title}{inline ? titleSeparator(sec.separator) : ""}</Text>;
           const bullets = bulletLines(it.bullets);
           const bullet = (b: string, i: number) => (
             <View key={i} style={s.bullet}>
               <Text style={s.dot}>•</Text>
-              <Text style={{ flex: 1, textAlign: itemAlign, ...F("body") }}>{b}</Text>
+              <Text style={{ flex: 1, textAlign: itemAlign, ...F("body") }}>
+                {renderPdfRuns(parseLineRuns(b))}
+              </Text>
             </View>
           );
           const head = (
@@ -162,7 +171,7 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
               {index === 0 ? <Heading text={sec.title} iconId={iconId} rule={rule} below={below} /> : null}
               <View style={s.row}>
                 <Text style={{ flex: 1 }}>
-                  {it.link ? <Link src={it.link} style={{ color: "#1a1a1a", textDecoration: "none" }}>{titleText}</Link> : titleText}
+                  {it.link ? <Link src={it.link} style={{ color: colors.itemTitleColor, textDecoration: "none" }}>{titleText}</Link> : titleText}
                   {inline ? <Text style={F("subtitle")}> {it.subtitle}</Text> : null}
                 </Text>
                 {it.date ? <Text style={{ color: "#555555", marginLeft: 10, ...F("date") }}>{it.date}</Text> : null}

@@ -5,23 +5,157 @@ import { defaultResume } from "@/lib/default";
 import { downloadBlob, safeName } from "@/lib/download";
 import { FONTS, FONT_IDS, FONT_ROLES } from "@/lib/fonts";
 import { ICONS } from "@/lib/icons";
-import { TEMPLATES, newItem, newSection, uid } from "@/lib/templates";
+import { TEMPLATES, newItem, newSection, resolveColors, uid } from "@/lib/templates";
 import type { ContactKey, EntriesSection, FontId, FontRole, HeaderOptions, Item, Resume, Section, SectionType, SkillsSection, Style, TemplateId, TextAlign, TextSection } from "@/lib/types";
 import { Preview } from "./Preview";
 
 const KEY = "resume-builder:v2";
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-function Field(props: { label: string; value: string; onChange: (v: string) => void; area?: boolean; rows?: number; placeholder?: string }) {
+function applyTag(
+  textarea: HTMLTextAreaElement,
+  tag: "b" | "i" | "u",
+  currentValue: string,
+  onChange: (val: string) => void
+) {
+  const start = textarea.selectionStart;
+  const end = textarea.selectionEnd;
+  const openTag = `<${tag}>`;
+  const closeTag = `</${tag}>`;
+  const openLen = openTag.length;
+  const closeLen = closeTag.length;
+
+  const selectedText = currentValue.substring(start, end);
+
+  const isAlreadyWrapped =
+    (selectedText.startsWith(openTag) && selectedText.endsWith(closeTag)) ||
+    (start >= openLen &&
+      end + closeLen <= currentValue.length &&
+      currentValue.substring(start - openLen, start) === openTag &&
+      currentValue.substring(end, end + closeLen) === closeTag);
+
+  let nextValue: string;
+  let nextStart: number;
+  let nextEnd: number;
+
+  if (isAlreadyWrapped) {
+    if (selectedText.startsWith(openTag) && selectedText.endsWith(closeTag)) {
+      const unwrapped = selectedText.slice(openLen, -closeLen);
+      nextValue = currentValue.substring(0, start) + unwrapped + currentValue.substring(end);
+      nextStart = start;
+      nextEnd = start + unwrapped.length;
+    } else {
+      nextValue =
+        currentValue.substring(0, start - openLen) +
+        selectedText +
+        currentValue.substring(end + closeLen);
+      nextStart = start - openLen;
+      nextEnd = nextStart + selectedText.length;
+    }
+  } else {
+    if (selectedText.length > 0) {
+      nextValue = currentValue.substring(0, start) + openTag + selectedText + closeTag + currentValue.substring(end);
+      nextStart = start;
+      nextEnd = end + openLen + closeLen;
+    } else {
+      nextValue = currentValue.substring(0, start) + openTag + closeTag + currentValue.substring(end);
+      nextStart = start + openLen;
+      nextEnd = nextStart;
+    }
+  }
+
+  onChange(nextValue);
+
+  requestAnimationFrame(() => {
+    textarea.focus();
+    textarea.setSelectionRange(nextStart, nextEnd);
+  });
+}
+
+function Field(props: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  area?: boolean;
+  rows?: number;
+  placeholder?: string;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.ctrlKey || e.metaKey) {
+      const k = e.key.toLowerCase();
+      if (k === "b" || k === "i" || k === "u") {
+        e.preventDefault();
+        e.stopPropagation();
+        if (textareaRef.current) {
+          applyTag(textareaRef.current, k as "b" | "i" | "u", props.value, props.onChange);
+        }
+      }
+    }
+  };
+
+  const handleToolbarClick = (tag: "b" | "i" | "u") => {
+    if (textareaRef.current) {
+      applyTag(textareaRef.current, tag, props.value, props.onChange);
+    }
+  };
+
   return (
-    <label className="field">
-      <span>{props.label}</span>
+    <div className="field">
+      <div className="field-head">
+        <span>{props.label}</span>
+        {props.area && (
+          <div className="format-toolbar">
+            <button
+              type="button"
+              className="btn-format"
+              title="Bold (Ctrl+B)"
+              onClick={(e) => {
+                e.preventDefault();
+                handleToolbarClick("b");
+              }}
+            >
+              <b>B</b>
+            </button>
+            <button
+              type="button"
+              className="btn-format"
+              title="Italic (Ctrl+I)"
+              onClick={(e) => {
+                e.preventDefault();
+                handleToolbarClick("i");
+              }}
+            >
+              <i>I</i>
+            </button>
+            <button
+              type="button"
+              className="btn-format"
+              title="Underline (Ctrl+U)"
+              onClick={(e) => {
+                e.preventDefault();
+                handleToolbarClick("u");
+              }}
+            >
+              <u>U</u>
+            </button>
+          </div>
+        )}
+      </div>
       {props.area ? (
-        <textarea rows={props.rows ?? 3} value={props.value} placeholder={props.placeholder} onChange={(e) => props.onChange(e.target.value)} />
+        <textarea
+          ref={textareaRef}
+          rows={props.rows ?? 3}
+          value={props.value}
+          placeholder={props.placeholder}
+          onChange={(e) => props.onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
       ) : (
         <input value={props.value} placeholder={props.placeholder} onChange={(e) => props.onChange(e.target.value)} />
       )}
-    </label>
+    </div>
   );
 }
 
@@ -258,6 +392,7 @@ export function Editor() {
   };
 
   const st = r.style;
+  const colors = resolveColors(st);
   const labelOf: Record<ContactKey, string> = { email: "Email", phone: "Phone", location: "Location" };
 
   return (
@@ -285,15 +420,71 @@ export function Editor() {
               ))}
             </div>
             <div className="two">
-              <label className="field"><span>Accent / rule colour</span><input type="color" value={st.accent} onChange={(e) => setStyle({ accent: e.target.value })} /></label>
               <label className="field"><span>Base font</span>
                 <select value={st.font} onChange={(e) => setStyle({ font: e.target.value as FontId })}>
                   {FONT_IDS.map((id) => <option key={id} value={id}>{FONTS[id].label}</option>)}
                 </select>
               </label>
+              <label className="field"><span>Text size: {st.base} pt</span>
+                <input type="range" min={8} max={12} step={0.5} value={st.base} onChange={(e) => setStyle({ base: Number(e.target.value) })} />
+              </label>
             </div>
-            <label className="field"><span>Text size: {st.base} pt</span>
-              <input type="range" min={8} max={12} step={0.5} value={st.base} onChange={(e) => setStyle({ base: Number(e.target.value) })} /></label>
+
+            <div className="color-section-group">
+              <div className="color-section-head">
+                <span className="field-group-title">Colors</span>
+                <button
+                  type="button"
+                  className="btn-subtle btn-reset-colors"
+                  onClick={() =>
+                    setStyle({
+                      sectionTitleColor: TEMPLATES[st.template].defaults.sectionTitleColor,
+                      ruleColor: TEMPLATES[st.template].defaults.ruleColor,
+                      itemTitleColor: TEMPLATES[st.template].defaults.itemTitleColor,
+                      accent: TEMPLATES[st.template].defaults.accent,
+                    })
+                  }
+                  title="Reset colors to template preset"
+                >
+                  Reset defaults
+                </button>
+              </div>
+              <div className="colors-grid">
+                <label className="field">
+                  <span>Section titles</span>
+                  <div className="color-picker-wrap">
+                    <input
+                      type="color"
+                      value={colors.sectionTitleColor}
+                      onChange={(e) => setStyle({ sectionTitleColor: e.target.value })}
+                    />
+                    <span className="color-hex">{colors.sectionTitleColor}</span>
+                  </div>
+                </label>
+                <label className="field">
+                  <span>Separator / rule</span>
+                  <div className="color-picker-wrap">
+                    <input
+                      type="color"
+                      value={colors.ruleColor}
+                      onChange={(e) => setStyle({ ruleColor: e.target.value, accent: e.target.value })}
+                    />
+                    <span className="color-hex">{colors.ruleColor}</span>
+                  </div>
+                </label>
+                <label className="field">
+                  <span>Entry titles</span>
+                  <div className="color-picker-wrap">
+                    <input
+                      type="color"
+                      value={colors.itemTitleColor}
+                      onChange={(e) => setStyle({ itemTitleColor: e.target.value })}
+                    />
+                    <span className="color-hex">{colors.itemTitleColor}</span>
+                  </div>
+                </label>
+              </div>
+            </div>
             <label className="field"><span>Space between a heading and its content: {st.headingGap} pt</span>
               <input type="range" min={0} max={16} step={1} value={st.headingGap} onChange={(e) => setStyle({ headingGap: Number(e.target.value) })} /></label>
             <div className="field"><span>Page margins (mm)</span>
