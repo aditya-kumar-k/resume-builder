@@ -76,6 +76,7 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
     const iconId = sectionIconId(sec);
     const rule = showHeadingRule(st, sec);
     const below = headingGapOf(st, sec);
+    const align = (sec.textAlign ?? st.textAlign ?? "left") as "left" | "right" | "center" | "justify";
     if (sec.type === "text") {
       const blocks = parseRich(sec.body);
       if (!blocks.length) return null;
@@ -88,10 +89,10 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
         return blk.bullet ? (
           <View style={s.bullet}>
             <Text style={s.dot}>•</Text>
-            <Text style={{ flex: 1 }}>{runs}</Text>
+            <Text style={{ flex: 1, textAlign: align, ...F("body") }}>{runs}</Text>
           </View>
         ) : (
-          <Text style={{ marginTop: index > 0 ? 2 : 0 }}>{runs}</Text>
+          <Text style={{ marginTop: index > 0 ? 2 : 0, textAlign: align, ...F("body") }}>{runs}</Text>
         );
       };
       return (
@@ -124,7 +125,7 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
         <View key={sec.id} style={s.section}>
           {groups.map((g, gi) => {
             const line = (
-              <Text key={g.id} style={{ marginBottom: 4 }}>
+              <Text key={g.id} style={{ marginBottom: 4, textAlign: align }}>
                 <Text style={F("itemTitle")}>{g.label.toUpperCase()}: </Text>
                 <Text style={F("body")}>{g.items}</Text>
               </Text>
@@ -145,13 +146,15 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
     return (
       <View key={sec.id} style={s.section}>
         {sec.items.map((it, index) => {
-          const inline = sec.subtitleInline && !!it.subtitle;
+          const itemAlign = (it.align ?? align) as "left" | "right" | "center" | "justify";
+          const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
+          const inline = isInline && !!it.subtitle;
           const titleText = <Text style={F("itemTitle")}>{it.title}{inline ? titleSeparator(sec.separator) : ""}</Text>;
           const bullets = bulletLines(it.bullets);
           const bullet = (b: string, i: number) => (
             <View key={i} style={s.bullet}>
               <Text style={s.dot}>•</Text>
-              <Text style={{ flex: 1, ...F("body") }}>{b}</Text>
+              <Text style={{ flex: 1, textAlign: itemAlign, ...F("body") }}>{b}</Text>
             </View>
           );
           const head = (
@@ -164,7 +167,7 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
                 </Text>
                 {it.date ? <Text style={{ color: "#555555", marginLeft: 10, ...F("date") }}>{it.date}</Text> : null}
               </View>
-              {!sec.subtitleInline && it.subtitle ? <Text style={F("subtitle")}>{it.subtitle}</Text> : null}
+              {!inline && it.subtitle ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</Text> : null}
             </>
           );
           const itemStyle = index === sec.items.length - 1 ? { marginBottom: 0 } : s.item;
@@ -192,7 +195,8 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
   };
 
   const items = headerItems(r);
-  const align = header.align === "center" ? ("center" as const) : ("left" as const);
+  const align = header.align === "center" ? ("center" as const) : header.align === "right" ? ("right" as const) : ("left" as const);
+  const headerJustify = align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start";
   const nameStyle = { ...F("name"), fontSize: st.base * 2.2 };
   const occStyle = { ...F("occupation"), fontSize: st.base * 1.3, color: "#444444" };
   const contactBase = { ...F("contact"), fontSize: st.base * 0.95, color: "#333333" };
@@ -216,7 +220,7 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
             </Text>
           )}
           {header.icons ? (
-            <View style={{ marginTop: 6, flexDirection: "row", flexWrap: "wrap", justifyContent: align === "center" ? "center" : "flex-start" }}>
+            <View style={{ marginTop: 6, flexDirection: "row", flexWrap: "wrap", justifyContent: headerJustify }}>
               {items.map((it, i) => (
                 <View key={i} style={{ flexDirection: "row", alignItems: "center", marginRight: 14 }}>
                   <PdfIcon id={it.icon} size={st.base * 1.0} color="#333333" />

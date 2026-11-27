@@ -75,7 +75,7 @@ export function Preview({ r }: { r: Resume }) {
   };
 
   /** One block of the Text section: runs with bold, italic, underline and links, or a bullet row. */
-  const richBlock = (blk: Block, index: number): ReactNode => {
+  const richBlock = (blk: Block, index: number, align: CSSProperties["textAlign"] = "left"): ReactNode => {
     const runs = blk.runs.map((r, k) => {
       if (r.text === "\n") return <br key={k} />;
       const v = r.bold ? "bold" : r.italic ? "italic" : undefined;
@@ -86,16 +86,17 @@ export function Preview({ r }: { r: Resume }) {
     return blk.bullet ? (
       <div style={{ display: "flex", marginTop: px(1), ...F("body") }}>
         <span style={{ width: px(10), flex: "0 0 auto" }}>•</span>
-        <span style={{ flex: 1 }}>{runs}</span>
+        <span style={{ flex: 1, textAlign: align }}>{runs}</span>
       </div>
     ) : (
-      <div style={{ marginTop: index > 0 ? px(2) : 0, ...F("body") }}>{runs}</div>
+      <div style={{ marginTop: index > 0 ? px(2) : 0, textAlign: align, ...F("body") }}>{runs}</div>
     );
   };
 
   const renderSection = (sec: Section) => {
     if (!sec.visible) return null;
     const h = heading(sec.title, sectionIconId(sec), showHeadingRule(st, sec), headingGapOf(st, sec));
+    const align: CSSProperties["textAlign"] = sec.textAlign ?? st.textAlign ?? "left";
     if (sec.type === "text") {
       if (!sec.body.trim()) return null;
       const blocks = parseRich(sec.body);
@@ -104,8 +105,8 @@ export function Preview({ r }: { r: Resume }) {
         <div key={sec.id} style={{ display: "flow-root" }}>
           {blocks.map((blk, bi) => {
             const short = isShortBlock(blk);
-            if (bi === 0) return short ? <div key={bi} data-keep>{h}{richBlock(blk, bi)}</div> : <div key={bi}><div data-keep>{h}</div>{richBlock(blk, bi)}</div>;
-            return <div key={bi} {...(short ? { "data-keep": "" } : {})}>{richBlock(blk, bi)}</div>;
+            if (bi === 0) return short ? <div key={bi} data-keep>{h}{richBlock(blk, bi, align)}</div> : <div key={bi}><div data-keep>{h}</div>{richBlock(blk, bi, align)}</div>;
+            return <div key={bi} {...(short ? { "data-keep": "" } : {})}>{richBlock(blk, bi, align)}</div>;
           })}
         </div>
       );
@@ -117,7 +118,7 @@ export function Preview({ r }: { r: Resume }) {
         <div key={sec.id} style={{ display: "flow-root" }}>
           {groups.map((g, gi) => {
             const line = (
-              <div style={{ marginBottom: px(4), ...F("body") }}>
+              <div style={{ marginBottom: px(4), textAlign: align, ...F("body") }}>
                 <span style={F("itemTitle")}>{g.label.toUpperCase()}: </span>{g.items}
               </div>
             );
@@ -135,6 +136,7 @@ export function Preview({ r }: { r: Resume }) {
     return (
       <div key={sec.id} style={{ display: "flow-root" }}>
         {sec.items.map((it, index) => {
+          const itemAlign = it.align ?? align;
           const mb = index === sec.items.length - 1 ? 0 : px(6);
           const title = it.link ? <a href={it.link} style={{ color: "inherit", textDecoration: "none" }}>{it.title}</a> : it.title;
           const bullets = bulletLines(it.bullets);
@@ -142,20 +144,21 @@ export function Preview({ r }: { r: Resume }) {
           const ul = (list: string[]) =>
             list.length > 0 && (
               <ul style={{ margin: 0, paddingLeft: px(10) }}>
-                {list.map((b, i) => <li key={i} data-keep style={{ marginTop: px(1) }}>{b}</li>)}
+                {list.map((b, i) => <li key={i} data-keep style={{ marginTop: px(1), textAlign: itemAlign }}>{b}</li>)}
               </ul>
             );
+          const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
           const head = (
             <>
               {index === 0 ? h : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span>
-                  <span style={F("itemTitle")}>{title}{sec.subtitleInline && it.subtitle ? titleSeparator(sec.separator) : ""}</span>
-                  {sec.subtitleInline && it.subtitle ? <span style={F("subtitle")}> {it.subtitle}</span> : null}
+                  <span style={F("itemTitle")}>{title}{isInline && it.subtitle ? titleSeparator(sec.separator) : ""}</span>
+                  {isInline && it.subtitle ? <span style={F("subtitle")}> {it.subtitle}</span> : null}
                 </span>
                 <span style={{ color: "#555", whiteSpace: "nowrap", ...F("date") }}>{it.date}</span>
               </div>
-              {!sec.subtitleInline && it.subtitle ? <div style={F("subtitle")}>{it.subtitle}</div> : null}
+              {!isInline && it.subtitle ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</div> : null}
             </>
           );
           // Short entries stay whole; long ones may split, but the heading, title line and first bullet stay together.
@@ -179,12 +182,13 @@ export function Preview({ r }: { r: Resume }) {
   };
 
   const items = headerItems(r);
-  const center = header.align === "center";
+  const headerAlign = header.align || "left";
+  const headerJustify = headerAlign === "center" ? "center" : headerAlign === "right" ? "flex-end" : "flex-start";
   const headerStyle: CSSProperties = {
     ...(st.band
       ? { background: st.bandColor, padding: `${mm(m.top)}px ${mm(m.right)}px ${px(12)} ${mm(m.left)}px` }
       : { padding: `${mm(m.top)}px ${mm(m.right)}px 0 ${mm(m.left)}px` }),
-    textAlign: center ? "center" : "left",
+    textAlign: headerAlign,
   };
   const nameEl = <span style={{ ...F("name"), fontSize: px(st.base * 2.2) }}>{r.name}</span>;
   const occEl = r.title ? (
@@ -209,7 +213,7 @@ export function Preview({ r }: { r: Resume }) {
         ) : (
           <div style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nameEl}{occEl}</div>
         )}
-        <div style={{ marginTop: px(6), fontSize: px(st.base * 0.95), color: "#333", display: "flex", flexWrap: "wrap", justifyContent: center ? "center" : "flex-start", columnGap: px(header.icons ? 14 : 0), rowGap: 2, ...F("contact") }}>
+        <div style={{ marginTop: px(6), fontSize: px(st.base * 0.95), color: "#333", display: "flex", flexWrap: "wrap", justifyContent: headerJustify, columnGap: px(header.icons ? 14 : 0), rowGap: 2, ...F("contact") }}>
           {items.map((it, i) => {
             const label = it.url ? <a href={it.url} style={{ color: "inherit", textDecoration: "none" }}>{it.label}</a> : it.label;
             return (

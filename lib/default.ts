@@ -50,5 +50,5 @@ export const defaultResume: Resume = {
       items: [{ id: "d1", title: "BA - Graphic Design", subtitle: "University of Texas", date: "07/2019", link: "", bullets: "" }],
     },
   ],
-  style: { template: "band", accent: "#9ca3af", font: "sans", base: 10, gap: 14, band: true, bandColor: "#e5e7eb", sectionIcons: false, headingRule: true, headingGap: 4, margins: { top: 10, right: 14, bottom: 13, left: 14 }, roleFonts: {} },
+  style: { template: "band", accent: "#9ca3af", font: "sans", textAlign: "left", base: 10, gap: 14, band: true, bandColor: "#e5e7eb", sectionIcons: false, headingRule: true, headingGap: 4, margins: { top: 10, right: 14, bottom: 13, left: 14 }, roleFonts: {} },
 };

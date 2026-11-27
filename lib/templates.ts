@@ -43,7 +43,7 @@ export function headerItems(r: Resume): HeaderItem[] {
     if (key === "phone" && r.phone) items.push({ label: r.phone, url: `tel:${r.phone.replace(/\s+/g, "")}`, icon: "phone" });
     if (key === "location" && r.location) items.push({ label: r.location, icon: "map-pin" });
   }
-  for (const l of r.links) if (l.label) items.push({ label: l.label, ...(l.url ? { url: l.url } : {}), icon: linkIcon(l.label, l.url) });
+  for (const l of r.links) if (l.label) items.push({ label: l.label, ...(l.url ? { url: l.url } : {}), icon: l.icon || linkIcon(l.label, l.url) });
   return items;
 }
 

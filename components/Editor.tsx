@@ -6,7 +6,7 @@ import { downloadBlob, safeName } from "@/lib/download";
 import { FONTS, FONT_IDS, FONT_ROLES } from "@/lib/fonts";
 import { ICONS } from "@/lib/icons";
 import { TEMPLATES, newItem, newSection, uid } from "@/lib/templates";
-import type { ContactKey, EntriesSection, FontId, FontRole, HeaderOptions, Item, Resume, Section, SectionType, SkillsSection, Style, TemplateId, TextSection } from "@/lib/types";
+import type { ContactKey, EntriesSection, FontId, FontRole, HeaderOptions, Item, Resume, Section, SectionType, SkillsSection, Style, TemplateId, TextAlign, TextSection } from "@/lib/types";
 import { Preview } from "./Preview";
 
 const KEY = "resume-builder:v2";
@@ -25,6 +25,30 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
   );
 }
 
+function Chevron() {
+  return (
+    <svg className="chevron-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m9 18 6-6-6-6" />
+    </svg>
+  );
+}
+
+function UpIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m18 15-6-6-6 6" />
+    </svg>
+  );
+}
+
+function DownIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
 const move = <T,>(list: T[], from: number, to: number) => {
   const next = [...list];
   const [item] = next.splice(from, 1);
@@ -39,10 +63,25 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
   const [fresh, setFresh] = useState("");
   return (
     <>
-      <label className="check">
-        <input type="checkbox" checked={sec.subtitleInline} onChange={(e) => onChange({ ...sec, subtitleInline: e.target.checked })} />
-        Put the subtitle on the same line as the title
-      </label>
+      <div className="two">
+        <label className="field"><span>Bullet points alignment</span>
+          <select value={sec.textAlign ?? "left"} onChange={(e) => onChange({ ...sec, textAlign: e.target.value as TextAlign })}>
+            <option value="left">Left</option>
+            <option value="justify">Justify</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
+        <label className="field"><span>Subtitle position (default)</span>
+          <select
+            value={sec.subtitleInline ? "inline" : "below"}
+            onChange={(e) => onChange({ ...sec, subtitleInline: e.target.value === "inline" })}
+          >
+            <option value="inline">Same line as title</option>
+            <option value="below">New line under title</option>
+          </select>
+        </label>
+      </div>
       {sec.subtitleInline && (
         <Field
           label="Separator between title and subtitle (empty = none)"
@@ -53,25 +92,52 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
       )}
       {sec.items.map((it, i) => (
         <details className="card entry" key={it.id} open={it.id === fresh}>
-          <summary>
-            {it.title || "Untitled entry"}
-            {it.date ? <small> · {it.date}</small> : null}
+          <summary className="entry-summary">
+            <Chevron />
+            <span className="entry-title">{it.title || "Untitled entry"}</span>
+            {it.date ? <span className="entry-date">{it.date}</span> : null}
           </summary>
-          <Field label="Title" value={it.title} onChange={(v) => setItem(it.id, { title: v })} />
-          <Field label="Subtitle" value={it.subtitle} onChange={(v) => setItem(it.id, { subtitle: v })} />
-          <div className="two">
-            <Field label="Date / place (right side)" value={it.date} onChange={(v) => setItem(it.id, { date: v })} />
-            <Field label="Link on title (optional)" value={it.link} placeholder="https://" onChange={(v) => setItem(it.id, { link: v })} />
-          </div>
-          <Field label="Bullets (one per line)" area rows={4} value={it.bullets} onChange={(v) => setItem(it.id, { bullets: v })} />
-          <div className="row">
-            <button disabled={i === 0} onClick={() => onChange({ ...sec, items: move(sec.items, i, i - 1) })}>↑</button>
-            <button disabled={i === sec.items.length - 1} onClick={() => onChange({ ...sec, items: move(sec.items, i, i + 1) })}>↓</button>
-            <button className="danger" onClick={() => onChange({ ...sec, items: sec.items.filter((x) => x.id !== it.id) })}>Remove</button>
+          <div className="entry-body">
+            <Field label="Title" value={it.title} onChange={(v) => setItem(it.id, { title: v })} />
+            <Field label="Subtitle" value={it.subtitle} onChange={(v) => setItem(it.id, { subtitle: v })} />
+            <label className="field"><span>Subtitle position</span>
+              <select
+                value={it.subtitleInline === undefined ? "" : it.subtitleInline ? "inline" : "below"}
+                onChange={(e) =>
+                  setItem(it.id, {
+                    subtitleInline: e.target.value === "" ? undefined : e.target.value === "inline",
+                  })
+                }
+              >
+                <option value="">Same as section ({sec.subtitleInline ? "Same line" : "New line under title"})</option>
+                <option value="below">New line under title</option>
+                <option value="inline">Same line as title</option>
+              </select>
+            </label>
+            <div className="two">
+              <Field label="Date / place (right side)" value={it.date} onChange={(v) => setItem(it.id, { date: v })} />
+              <Field label="Link on title (optional)" value={it.link} placeholder="https://" onChange={(v) => setItem(it.id, { link: v })} />
+            </div>
+            <Field label="Bullets (one per line)" area rows={4} value={it.bullets} onChange={(v) => setItem(it.id, { bullets: v })} />
+            <label className="field"><span>Bullet alignment for this entry</span>
+              <select value={it.align ?? ""} onChange={(e) => setItem(it.id, { align: e.target.value ? (e.target.value as TextAlign) : undefined })}>
+                <option value="">Same as section ({sec.textAlign ?? "left"})</option>
+                <option value="left">Left</option>
+                <option value="justify">Justify</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </label>
+            <div className="row entry-actions">
+              <button className="btn-subtle" disabled={i === 0} onClick={() => onChange({ ...sec, items: move(sec.items, i, i - 1) })}>↑ Move</button>
+              <button className="btn-subtle" disabled={i === sec.items.length - 1} onClick={() => onChange({ ...sec, items: move(sec.items, i, i + 1) })}>↓ Move</button>
+              <button className="danger btn-subtle" onClick={() => onChange({ ...sec, items: sec.items.filter((x) => x.id !== it.id) })}>Remove</button>
+            </div>
           </div>
         </details>
       ))}
       <button
+        className="btn-add-sub"
         onClick={() => {
           const item = newItem();
           setFresh(item.id);
@@ -89,19 +155,32 @@ function SkillsEditor({ sec, onChange }: { sec: SkillsSection; onChange: (s: Ski
     onChange({ ...sec, groups: sec.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)) });
   return (
     <>
+      <label className="field"><span>Skills alignment</span>
+        <select value={sec.textAlign ?? "left"} onChange={(e) => onChange({ ...sec, textAlign: e.target.value as TextAlign })}>
+          <option value="left">Left</option>
+          <option value="justify">Justify</option>
+          <option value="center">Center</option>
+          <option value="right">Right</option>
+        </select>
+      </label>
       {sec.groups.map((g, i) => (
         <details className="card entry" key={g.id}>
-          <summary>{g.label || "Untitled group"}</summary>
-          <Field label="Group name" value={g.label} onChange={(v) => setGroup(g.id, { label: v })} />
-          <Field label="Skills (comma separated)" area value={g.items} onChange={(v) => setGroup(g.id, { items: v })} />
-          <div className="row">
-            <button disabled={i === 0} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i - 1) })}>↑</button>
-            <button disabled={i === sec.groups.length - 1} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i + 1) })}>↓</button>
-            <button className="danger" onClick={() => onChange({ ...sec, groups: sec.groups.filter((x) => x.id !== g.id) })}>Remove</button>
+          <summary className="entry-summary">
+            <Chevron />
+            <span className="entry-title">{g.label || "Untitled group"}</span>
+          </summary>
+          <div className="entry-body">
+            <Field label="Group name" value={g.label} onChange={(v) => setGroup(g.id, { label: v })} />
+            <Field label="Skills (comma separated)" area value={g.items} onChange={(v) => setGroup(g.id, { items: v })} />
+            <div className="row entry-actions">
+              <button className="btn-subtle" disabled={i === 0} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i - 1) })}>↑ Move</button>
+              <button className="btn-subtle" disabled={i === sec.groups.length - 1} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i + 1) })}>↓ Move</button>
+              <button className="danger btn-subtle" onClick={() => onChange({ ...sec, groups: sec.groups.filter((x) => x.id !== g.id) })}>Remove</button>
+            </div>
           </div>
         </details>
       ))}
-      <button onClick={() => onChange({ ...sec, groups: [...sec.groups, { id: uid(), label: "Group", items: "" }] })}>+ Add group</button>
+      <button className="btn-add-sub" onClick={() => onChange({ ...sec, groups: [...sec.groups, { id: uid(), label: "Group", items: "" }] })}>+ Add group</button>
     </>
   );
 }
@@ -184,166 +263,251 @@ export function Editor() {
   return (
     <div className="app">
       <aside className="panel">
-        <h1>Resume Builder</h1>
+        <div className="brand-header">
+          <div className="brand-title-wrap">
+            <h1>Resume Builder</h1>
+            <span className="brand-pill">Client-side · Private</span>
+          </div>
+        </div>
 
-        <details open>
-          <summary>Design</summary>
-          <div className="templates">
-            {(Object.keys(TEMPLATES) as TemplateId[]).map((id) => (
-              <button key={id} className={st.template === id ? "tpl on" : "tpl"} onClick={() => pickTemplate(id)}>
-                <b>{TEMPLATES[id].name}</b>
-                <small>{TEMPLATES[id].description}</small>
-              </button>
-            ))}
-          </div>
-          <div className="two">
-            <label className="field"><span>Accent / rule colour</span><input type="color" value={st.accent} onChange={(e) => setStyle({ accent: e.target.value })} /></label>
-            <label className="field"><span>Base font</span>
-              <select value={st.font} onChange={(e) => setStyle({ font: e.target.value as FontId })}>
-                {FONT_IDS.map((id) => <option key={id} value={id}>{FONTS[id].label}</option>)}
-              </select>
-            </label>
-          </div>
-          <label className="field"><span>Text size: {st.base} pt</span>
-            <input type="range" min={8} max={12} step={0.5} value={st.base} onChange={(e) => setStyle({ base: Number(e.target.value) })} /></label>
-          <label className="field"><span>Space between a heading and its content: {st.headingGap} pt</span>
-            <input type="range" min={0} max={16} step={1} value={st.headingGap} onChange={(e) => setStyle({ headingGap: Number(e.target.value) })} /></label>
-          <div className="field"><span>Page margins (mm)</span>
-            <div className="margins">
-              {(["top", "right", "bottom", "left"] as const).map((side) => (
-                <label key={side} className="field">
-                  <span>{side[0]?.toUpperCase() + side.slice(1)}</span>
-                  <input
-                    type="number" min={0} max={40} step={1} value={st.margins[side]}
-                    onChange={(e) => setStyle({ margins: { ...st.margins, [side]: Math.max(0, Math.min(40, Number(e.target.value) || 0)) } })}
-                  />
-                </label>
+        <details className="card acc-root" open>
+          <summary className="acc-summary">
+            <Chevron />
+            <span>Design</span>
+          </summary>
+          <div className="acc-body">
+            <div className="templates">
+              {(Object.keys(TEMPLATES) as TemplateId[]).map((id) => (
+                <button key={id} className={st.template === id ? "tpl on" : "tpl"} onClick={() => pickTemplate(id)}>
+                  <b>{TEMPLATES[id].name}</b>
+                  <small>{TEMPLATES[id].description}</small>
+                </button>
               ))}
             </div>
-            <button onClick={() => setStyle({ margins: defaultResume.style.margins })}>Reset margins</button>
-          </div>
-          <label className="field"><span>Space between sections: {st.gap} pt</span>
-            <input type="range" min={4} max={24} step={1} value={st.gap} onChange={(e) => setStyle({ gap: Number(e.target.value) })} /></label>
-          <div className="two">
-            <label className="check"><input type="checkbox" checked={st.band} onChange={(e) => setStyle({ band: e.target.checked })} />Header band</label>
-            <label className="field"><span>Band colour</span><input type="color" value={st.bandColor} onChange={(e) => setStyle({ bandColor: e.target.value })} /></label>
-          </div>
-          <label className="check"><input type="checkbox" checked={st.sectionIcons} onChange={(e) => setStyle({ sectionIcons: e.target.checked })} />Show icons beside section headings</label>
-          <label className="check"><input type="checkbox" checked={st.headingRule} onChange={(e) => setStyle({ headingRule: e.target.checked })} />Show the line under section headings</label>
-          <details className="inner">
-            <summary>Fonts for each kind of text</summary>
-            <p className="hint">Anything left on “Same as base” follows the base font. Word shows these fonts only where they are installed.</p>
-            {FONT_ROLES.map((role) => (
-              <label className="field" key={role.id}>
-                <span>{role.label}</span>
-                <select value={st.roleFonts[role.id] ?? ""} onChange={(e) => setRoleFont(role.id, e.target.value)}>
-                  <option value="">Same as base</option>
+            <div className="two">
+              <label className="field"><span>Accent / rule colour</span><input type="color" value={st.accent} onChange={(e) => setStyle({ accent: e.target.value })} /></label>
+              <label className="field"><span>Base font</span>
+                <select value={st.font} onChange={(e) => setStyle({ font: e.target.value as FontId })}>
                   {FONT_IDS.map((id) => <option key={id} value={id}>{FONTS[id].label}</option>)}
                 </select>
               </label>
+            </div>
+            <label className="field"><span>Text size: {st.base} pt</span>
+              <input type="range" min={8} max={12} step={0.5} value={st.base} onChange={(e) => setStyle({ base: Number(e.target.value) })} /></label>
+            <label className="field"><span>Space between a heading and its content: {st.headingGap} pt</span>
+              <input type="range" min={0} max={16} step={1} value={st.headingGap} onChange={(e) => setStyle({ headingGap: Number(e.target.value) })} /></label>
+            <div className="field"><span>Page margins (mm)</span>
+              <div className="margins">
+                {(["top", "right", "bottom", "left"] as const).map((side) => (
+                  <label key={side} className="field">
+                    <span>{side[0]?.toUpperCase() + side.slice(1)}</span>
+                    <input
+                      type="number" min={0} max={40} step={1} value={st.margins[side]}
+                      onChange={(e) => setStyle({ margins: { ...st.margins, [side]: Math.max(0, Math.min(40, Number(e.target.value) || 0)) } })}
+                    />
+                  </label>
+                ))}
+              </div>
+              <button className="btn-subtle" onClick={() => setStyle({ margins: defaultResume.style.margins })}>Reset margins</button>
+            </div>
+            <label className="field"><span>Space between sections: {st.gap} pt</span>
+              <input type="range" min={4} max={24} step={1} value={st.gap} onChange={(e) => setStyle({ gap: Number(e.target.value) })} /></label>
+            <div className="two">
+              <label className="check"><input type="checkbox" checked={st.band} onChange={(e) => setStyle({ band: e.target.checked })} />Header band</label>
+              <label className="field"><span>Band colour</span><input type="color" value={st.bandColor} onChange={(e) => setStyle({ bandColor: e.target.value })} /></label>
+            </div>
+            <label className="check"><input type="checkbox" checked={st.sectionIcons} onChange={(e) => setStyle({ sectionIcons: e.target.checked })} />Show icons beside section headings</label>
+            <label className="check"><input type="checkbox" checked={st.headingRule} onChange={(e) => setStyle({ headingRule: e.target.checked })} />Show the line under section headings</label>
+            <details className="inner">
+              <summary>Fonts for each kind of text</summary>
+              <p className="hint">Anything left on “Same as base” follows the base font. Word shows these fonts only where they are installed.</p>
+              {FONT_ROLES.map((role) => (
+                <label className="field" key={role.id}>
+                  <span>{role.label}</span>
+                  <select value={st.roleFonts[role.id] ?? ""} onChange={(e) => setRoleFont(role.id, e.target.value)}>
+                    <option value="">Same as base</option>
+                    {FONT_IDS.map((id) => <option key={id} value={id}>{FONTS[id].label}</option>)}
+                  </select>
+                </label>
+              ))}
+              <button className="btn-subtle" onClick={() => setStyle({ roleFonts: {} })}>Reset all to base font</button>
+            </details>
+          </div>
+        </details>
+
+        <details className="card acc-root" open>
+          <summary className="acc-summary">
+            <Chevron />
+            <span>Header</span>
+          </summary>
+          <div className="acc-body">
+            <Field label="Full name" value={r.name} onChange={(v) => set("name", v)} />
+            <Field label="Occupation" value={r.title} onChange={(v) => set("title", v)} />
+            <div className="two">
+              <label className="field"><span>Header alignment</span>
+                <select value={r.header.align} onChange={(e) => setHeader({ align: e.target.value as "left" | "center" | "right" })}>
+                  <option value="left">Left</option>
+                  <option value="center">Center</option>
+                  <option value="right">Right</option>
+                </select>
+              </label>
+              <label className="field"><span>Occupation position</span>
+                <select
+                  value={r.header.occupationNewLine ? "below" : "inline"}
+                  onChange={(e) => setHeader({ occupationNewLine: e.target.value === "below" })}
+                >
+                  <option value="inline">Same line as name</option>
+                  <option value="below">New line under name</option>
+                </select>
+              </label>
+            </div>
+            <Field label="Email" value={r.email} onChange={(v) => set("email", v)} />
+            <Field label="Phone" value={r.phone} onChange={(v) => set("phone", v)} />
+            <Field label="Location" value={r.location} onChange={(v) => set("location", v)} />
+            <label className="field"><span>Order on the contact line</span></label>
+            {r.header.contactOrder.map((key, i) => (
+              <div className="row order" key={key}>
+                <span>{i + 1}. {labelOf[key]}</span>
+                <button className="btn-icon" disabled={i === 0} onClick={() => setHeader({ contactOrder: move(r.header.contactOrder, i, i - 1) })}><UpIcon /></button>
+                <button className="btn-icon" disabled={i === r.header.contactOrder.length - 1} onClick={() => setHeader({ contactOrder: move(r.header.contactOrder, i, i + 1) })}><DownIcon /></button>
+              </div>
             ))}
-            <button onClick={() => setStyle({ roleFonts: {} })}>Reset all to base font</button>
-          </details>
+            <label className="check"><input type="checkbox" checked={r.header.icons} onChange={(e) => setHeader({ icons: e.target.checked })} />Show icons in the header (PDF and preview; Word stays plain)</label>
+            <p className="hint">Links appear after the location, all on one line.</p>
+            {r.links.map((l, i) => (
+              <div className="row link" key={l.id}>
+                <select
+                  value={l.icon ?? ""}
+                  title="Icon"
+                  style={{ width: "auto", flex: "0 0 88px", padding: "7px 4px", fontSize: 12 }}
+                  onChange={(e) => set("links", r.links.map((x) => (x.id === l.id ? { ...x, icon: e.target.value || undefined } : x)))}
+                >
+                  <option value="">Auto</option>
+                  <option value="linkedin">LinkedIn</option>
+                  <option value="github">GitHub</option>
+                  <option value="globe">Globe</option>
+                  <option value="link">Link</option>
+                  <option value="code">Code</option>
+                </select>
+                <input value={l.label} placeholder="Label" onChange={(e) => set("links", r.links.map((x) => (x.id === l.id ? { ...x, label: e.target.value } : x)))} />
+                <input value={l.url} placeholder="https://" onChange={(e) => set("links", r.links.map((x) => (x.id === l.id ? { ...x, url: e.target.value } : x)))} />
+                <button className="btn-icon" disabled={i === 0} onClick={() => set("links", move(r.links, i, i - 1))}><UpIcon /></button>
+                <button className="btn-icon danger" onClick={() => set("links", r.links.filter((x) => x.id !== l.id))}>✕</button>
+              </div>
+            ))}
+            <button className="btn-add-sub" onClick={() => set("links", [...r.links, { id: uid(), label: "", url: "" }])}>+ Add link</button>
+          </div>
         </details>
 
-        <details open>
-          <summary>Header</summary>
-          <Field label="Full name" value={r.name} onChange={(v) => set("name", v)} />
-          <Field label="Occupation" value={r.title} onChange={(v) => set("title", v)} />
-          <label className="field"><span>Header alignment</span>
-            <select value={r.header.align} onChange={(e) => setHeader({ align: e.target.value as "left" | "center" })}>
-              <option value="left">Left</option>
-              <option value="center">Center</option>
-            </select>
-          </label>
-          <label className="check"><input type="checkbox" checked={r.header.occupationNewLine} onChange={(e) => setHeader({ occupationNewLine: e.target.checked })} />Occupation on its own line under the name</label>
-          <Field label="Email" value={r.email} onChange={(v) => set("email", v)} />
-          <Field label="Phone" value={r.phone} onChange={(v) => set("phone", v)} />
-          <Field label="Location" value={r.location} onChange={(v) => set("location", v)} />
-          <label className="field"><span>Order on the contact line</span></label>
-          {r.header.contactOrder.map((key, i) => (
-            <div className="row order" key={key}>
-              <span>{i + 1}. {labelOf[key]}</span>
-              <button disabled={i === 0} onClick={() => setHeader({ contactOrder: move(r.header.contactOrder, i, i - 1) })}>↑</button>
-              <button disabled={i === r.header.contactOrder.length - 1} onClick={() => setHeader({ contactOrder: move(r.header.contactOrder, i, i + 1) })}>↓</button>
-            </div>
-          ))}
-          <label className="check"><input type="checkbox" checked={r.header.icons} onChange={(e) => setHeader({ icons: e.target.checked })} />Show icons in the header (PDF and preview; Word stays plain)</label>
-          <p className="hint">Links appear after the location, all on one line.</p>
-          {r.links.map((l, i) => (
-            <div className="row link" key={l.id}>
-              <input value={l.label} placeholder="Label" onChange={(e) => set("links", r.links.map((x) => (x.id === l.id ? { ...x, label: e.target.value } : x)))} />
-              <input value={l.url} placeholder="https://" onChange={(e) => set("links", r.links.map((x) => (x.id === l.id ? { ...x, url: e.target.value } : x)))} />
-              <button disabled={i === 0} onClick={() => set("links", move(r.links, i, i - 1))}>↑</button>
-              <button className="danger" onClick={() => set("links", r.links.filter((x) => x.id !== l.id))}>✕</button>
-            </div>
-          ))}
-          <button onClick={() => set("links", [...r.links, { id: uid(), label: "", url: "" }])}>+ Add link</button>
-        </details>
+        <div className="section-head-bar">
+          <h2>Sections</h2>
+          <span className="section-count">{r.sections.length}</span>
+        </div>
 
-        <h2>Sections</h2>
-        {r.sections.map((sec, i) => (
-          <details className={sec.visible ? "sec" : "sec off"} key={sec.id}>
-            <summary>
-              <span className="mv">
-                <button
-                  title="Move section up" aria-label="Move section up" disabled={i === 0}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); set("sections", move(r.sections, i, i - 1)); }}
-                >↑</button>
-                <button
-                  title="Move section down" aria-label="Move section down" disabled={i === r.sections.length - 1}
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); set("sections", move(r.sections, i, i + 1)); }}
-                >↓</button>
-              </span>
-              {sec.title || "Untitled"} <small>({sec.type}{sec.visible ? "" : ", hidden"})</small>
-            </summary>
-            <Field label="Section title" value={sec.title} onChange={(v) => setSection({ ...sec, title: v })} />
-            <label className="field"><span>Icon (shown when section icons are on)</span>
-              <select value={sec.icon ?? ""} onChange={(e) => setSection({ ...sec, icon: e.target.value || undefined } as Section)}>
-                <option value="">Automatic (from the title)</option>
-                <option value="none">No icon</option>
-                {Object.entries(ICONS).map(([id, d]) => <option key={id} value={id}>{d.label}</option>)}
-              </select>
-            </label>
-            <label className="field"><span>Line under this heading</span>
-              <select value={sec.rule ?? ""} onChange={(e) => setSection({ ...sec, rule: e.target.value ? (e.target.value as "show" | "hide") : undefined } as Section)}>
-                <option value="">Same as design ({st.headingRule ? "shown" : "hidden"})</option>
-                <option value="show">Always show</option>
-                <option value="hide">Always hide</option>
-              </select>
-            </label>
-            <label className="field"><span>Space under this heading, pt (empty = same as design, {st.headingGap})</span>
-              <input
-                type="number" min={0} max={30} step={1} value={sec.headingGap ?? ""} placeholder={String(st.headingGap)}
-                onChange={(e) => setSection({ ...sec, headingGap: e.target.value === "" ? undefined : Math.max(0, Math.min(30, Number(e.target.value))) } as Section)}
-              />
-            </label>
-            <div className="row">
-              <label className="check"><input type="checkbox" checked={sec.visible} onChange={(e) => setSection({ ...sec, visible: e.target.checked })} />Show</label>
-              <button className="danger" onClick={() => set("sections", r.sections.filter((x) => x.id !== sec.id))}>Delete</button>
-            </div>
-            {sec.type === "text" && <Field label="Text (HTML works: <b> <i> <u> <a href> <br> <p> <ul><li>)" area rows={6} value={sec.body} onChange={(v) => setSection({ ...(sec as TextSection), body: v })} />}
-            {sec.type === "skills" && <SkillsEditor sec={sec} onChange={setSection} />}
-            {sec.type === "entries" && <EntriesEditor sec={sec} onChange={setSection} />}
-          </details>
-        ))}
-        <div className="row add">
+        <div className="sections-list">
+          {r.sections.map((sec, i) => (
+            <details className={`card sec ${sec.visible ? "" : "off"}`} key={sec.id}>
+              <summary className="sec-summary">
+                <Chevron />
+                <span className="sec-title">{sec.title || "Untitled"}</span>
+                <span className={`sec-badge ${sec.visible ? "" : "hidden"}`}>
+                  {sec.type}
+                  {!sec.visible && " · hidden"}
+                </span>
+                <span className="mv">
+                  <button
+                    className="btn-icon"
+                    title="Move section up"
+                    aria-label="Move section up"
+                    disabled={i === 0}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      set("sections", move(r.sections, i, i - 1));
+                    }}
+                  >
+                    <UpIcon />
+                  </button>
+                  <button
+                    className="btn-icon"
+                    title="Move section down"
+                    aria-label="Move section down"
+                    disabled={i === r.sections.length - 1}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      set("sections", move(r.sections, i, i + 1));
+                    }}
+                  >
+                    <DownIcon />
+                  </button>
+                </span>
+              </summary>
+              <div className="sec-body">
+                <Field label="Section title" value={sec.title} onChange={(v) => setSection({ ...sec, title: v })} />
+                <label className="field"><span>Icon (shown when section icons are on)</span>
+                  <select value={sec.icon ?? ""} onChange={(e) => setSection({ ...sec, icon: e.target.value || undefined } as Section)}>
+                    <option value="">Automatic (from the title)</option>
+                    <option value="none">No icon</option>
+                    {Object.entries(ICONS).map(([id, d]) => <option key={id} value={id}>{d.label}</option>)}
+                  </select>
+                </label>
+                <div className="two">
+                  <label className="field"><span>Line under heading</span>
+                    <select value={sec.rule ?? ""} onChange={(e) => setSection({ ...sec, rule: e.target.value ? (e.target.value as "show" | "hide") : undefined } as Section)}>
+                      <option value="">Same as design ({st.headingRule ? "shown" : "hidden"})</option>
+                      <option value="show">Always show</option>
+                      <option value="hide">Always hide</option>
+                    </select>
+                  </label>
+                  <label className="field"><span>Space under heading, pt</span>
+                    <input
+                      type="number" min={0} max={30} step={1} value={sec.headingGap ?? ""} placeholder={String(st.headingGap)}
+                      onChange={(e) => setSection({ ...sec, headingGap: e.target.value === "" ? undefined : Math.max(0, Math.min(30, Number(e.target.value))) } as Section)}
+                    />
+                  </label>
+                </div>
+                <div className="row sec-actions">
+                  <label className="check"><input type="checkbox" checked={sec.visible} onChange={(e) => setSection({ ...sec, visible: e.target.checked })} />Visible in resume</label>
+                  <button className="danger btn-del" onClick={() => set("sections", r.sections.filter((x) => x.id !== sec.id))}>Delete section</button>
+                </div>
+                {sec.type === "text" && (
+                  <>
+                    <label className="field"><span>Text alignment</span>
+                      <select value={sec.textAlign ?? "left"} onChange={(e) => setSection({ ...sec, textAlign: e.target.value as TextAlign } as Section)}>
+                        <option value="left">Left</option>
+                        <option value="justify">Justify</option>
+                        <option value="center">Center</option>
+                        <option value="right">Right</option>
+                      </select>
+                    </label>
+                    <Field label="Text (HTML works: <b> <i> <u> <a href> <br> <p> <ul><li>)" area rows={6} value={sec.body} onChange={(v) => setSection({ ...(sec as TextSection), body: v })} />
+                  </>
+                )}
+                {sec.type === "skills" && <SkillsEditor sec={sec} onChange={setSection} />}
+                {sec.type === "entries" && <EntriesEditor sec={sec} onChange={setSection} />}
+              </div>
+            </details>
+          ))}
+        </div>
+
+        <div className="row add-section-bar">
           <select value={newType} onChange={(e) => setNewType(e.target.value as SectionType)}>
             <option value="entries">Entries (jobs, projects, education, awards)</option>
             <option value="skills">Skills (grouped)</option>
             <option value="text">Text (summary, about)</option>
           </select>
-          <button onClick={() => set("sections", [...r.sections, newSection(newType)])}>+ Add section</button>
+          <button className="btn-add-primary" onClick={() => set("sections", [...r.sections, newSection(newType)])}>+ Add section</button>
         </div>
 
-        <section className="export">
+        <section className="export-card">
           <h2>Download</h2>
           <button className="primary" disabled={!!busy} onClick={() => void exportFiles("both")}>
             {busy === "both" ? "Preparing…" : "Download PDF + Word"}
           </button>
           <div className="row">
-            <button disabled={!!busy} onClick={() => void exportFiles("pdf")}>{busy === "pdf" ? "…" : "PDF only"}</button>
-            <button disabled={!!busy} onClick={() => void exportFiles("docx")}>{busy === "docx" ? "…" : "Word only"}</button>
+            <button className="secondary" disabled={!!busy} onClick={() => void exportFiles("pdf")}>{busy === "pdf" ? "…" : "PDF only"}</button>
+            <button className="secondary" disabled={!!busy} onClick={() => void exportFiles("docx")}>{busy === "docx" ? "…" : "Word only"}</button>
           </div>
           {error && <p role="alert" className="err">{error}</p>}
           <p className="hint">Word uses one simple column so applicant systems read it cleanly. Everything stays in your browser.</p>

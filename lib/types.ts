@@ -3,8 +3,9 @@ export type FontId = "sans" | "serif" | "mono" | "inter" | "lato" | "opensans" |
 /** Every kind of text that can take its own font. */
 export type FontRole = "name" | "occupation" | "contact" | "heading" | "itemTitle" | "subtitle" | "date" | "body";
 export type ContactKey = "email" | "phone" | "location";
+export type TextAlign = "left" | "center" | "right" | "justify";
 
-export type Link = { id: string; label: string; url: string };
+export type Link = { id: string; label: string; url: string; icon?: string };
 
 /** One entry: a project, job, degree, award or certificate. */
 export type Item = {
@@ -16,6 +17,10 @@ export type Item = {
   /** Makes the title a clickable link. */
   link: string;
   bullets: string;
+  /** Alignment of bullet points for this entry (overrides section setting). */
+  align?: TextAlign;
+  /** Override section setting: true = same line as title, false = new line under title. */
+  subtitleInline?: boolean;
 };
 
 export type SkillGroup = { id: string; label: string; items: string };
@@ -30,6 +35,8 @@ type Base = {
   rule?: "show" | "hide";
   /** Space between this section's heading and its content, in pt: undefined follows the design setting. */
   headingGap?: number;
+  /** Alignment of text in this section: undefined follows the design setting. */
+  textAlign?: TextAlign;
 };
 
 export type TextSection = Base & { type: "text"; body: string };
@@ -49,6 +56,8 @@ export type Style = {
   template: TemplateId;
   accent: string;
   font: FontId;
+  /** Text alignment (legacy or fallback). */
+  textAlign?: TextAlign;
   /** Body size in pt. */
   base: number;
   /** Space between sections in pt. */
@@ -71,7 +80,7 @@ export type HeaderOptions = {
   contactOrder: ContactKey[];
   icons: boolean;
   /** Alignment of the whole header block. */
-  align: "left" | "center";
+  align: "left" | "center" | "right";
 };
 
 export type Resume = {

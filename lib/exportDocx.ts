@@ -1,6 +1,6 @@
 import { AlignmentType, BorderStyle, Document, ExternalHyperlink, Packer, Paragraph, ShadingType, TabStopType, TextRun } from "docx";
 import type { ParagraphChild } from "docx";
-import type { Resume, Section } from "./types";
+import type { Resume, Section, TextAlign } from "./types";
 import { FONTS, fontFor, variantOf } from "./fonts";
 import type { FontRole } from "./types";
 import { parseRich } from "./richtext";
@@ -8,6 +8,20 @@ import { TEMPLATES, bulletLines, headerItems, headingGapOf, showHeadingRule, tit
 
 const hex = (c: string) => c.replace("#", "").toUpperCase();
 const TWIPS_PER_MM = 1440 / 25.4;
+
+const toDocxAlign = (align?: TextAlign) => {
+  switch (align) {
+    case "center":
+      return AlignmentType.CENTER;
+    case "right":
+      return AlignmentType.RIGHT;
+    case "justify":
+      return AlignmentType.JUSTIFIED;
+    case "left":
+    default:
+      return AlignmentType.LEFT;
+  }
+};
 
 /** Word keeps one simple column for every template so applicant systems read it cleanly. */
 export async function createDocxBlob(r: Resume): Promise<Blob> {
@@ -47,7 +61,7 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
     });
 
   const body: Paragraph[] = [];
-  const alignment = r.header.align === "center" ? AlignmentType.CENTER : AlignmentType.LEFT;
+  const alignment = toDocxAlign(r.header.align);
 
   const nameRun = run(r.name, "name", { size: Math.round(size * 2.2) });
   const occRun = (text: string) => run(text, "occupation", { size: Math.round(size * 1.3), color: "444444" });
@@ -67,6 +81,7 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
 
   const section = (sec: Section) => {
     if (!sec.visible) return;
+    const align = toDocxAlign(sec.textAlign ?? st.textAlign ?? "left");
     if (sec.type === "text") {
       const blocks = parseRich(sec.body);
       if (!blocks.length) return;
@@ -77,7 +92,7 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
           const t = run(r.text, "body", { bold: r.bold || undefined, italics: r.italic || undefined, underline: r.underline });
           return r.href ? new ExternalHyperlink({ link: r.href, children: [t] }) : t;
         });
-        body.push(new Paragraph({ bullet: blk.bullet ? { level: 0 } : undefined, children }));
+        body.push(new Paragraph({ alignment: align, bullet: blk.bullet ? { level: 0 } : undefined, children }));
       }
       return;
     }
@@ -85,13 +100,15 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
       const groups = sec.groups.filter((g) => g.items.trim());
       if (!groups.length) return;
       body.push(heading(sec.title, showHeadingRule(st, sec), headingGapOf(st, sec)));
-      for (const g of groups) body.push(new Paragraph({ spacing: { after: 60 }, children: [run(`${g.label.toUpperCase()}: `, "itemTitle"), run(g.items, "body")] }));
+      for (const g of groups) body.push(new Paragraph({ alignment: align, spacing: { after: 60 }, children: [run(`${g.label.toUpperCase()}: `, "itemTitle"), run(g.items, "body")] }));
       return;
     }
     if (!sec.items.length) return;
     body.push(heading(sec.title, showHeadingRule(st, sec), headingGapOf(st, sec)));
     for (const it of sec.items) {
-      const inline = sec.subtitleInline && !!it.subtitle;
+      const itemAlign = toDocxAlign(it.align ?? sec.textAlign ?? "left");
+      const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
+      const inline = isInline && !!it.subtitle;
       const titleRun = run(`${it.title}${inline ? titleSeparator(sec.separator) : ""}`, "itemTitle");
       const left: ParagraphChild[] = [it.link ? new ExternalHyperlink({ link: it.link, children: [titleRun] }) : titleRun];
       if (inline) left.push(run(` ${it.subtitle}`, "subtitle"));
@@ -104,8 +121,8 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
           children: left,
         }),
       );
-      if (!sec.subtitleInline && it.subtitle) body.push(new Paragraph({ children: [run(it.subtitle, "subtitle")] }));
-      for (const b of bulletLines(it.bullets)) body.push(new Paragraph({ bullet: { level: 0 }, children: [run(b, "body")] }));
+      if (!inline && it.subtitle) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle, "subtitle")] }));
+      for (const b of bulletLines(it.bullets)) body.push(new Paragraph({ alignment: itemAlign, bullet: { level: 0 }, children: [run(b, "body")] }));
     }
   };
   r.sections.forEach(section);
