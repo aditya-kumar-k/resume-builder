@@ -156,8 +156,12 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
         {sec.items.map((it, index) => {
           const itemAlign = (it.align ?? align) as "left" | "right" | "center" | "justify";
           const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
-          const inline = isInline && !!it.subtitle;
-          const titleText = <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{it.title}{inline ? titleSeparator(sec.separator) : ""}</Text>;
+          const hasSub1 = !!it.subtitle;
+          const hasSub2 = !!it.subtitle2;
+          const hasAnySub = hasSub1 || hasSub2;
+          const inline = isInline && hasAnySub;
+          const sep = sec.separator;
+          const titleText = <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{it.title}{inline ? titleSeparator(sep) : ""}</Text>;
           const bullets = bulletLines(it.bullets);
           const bullet = (b: string, i: number) => (
             <View key={i} style={s.bullet}>
@@ -173,11 +177,14 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
               <View style={s.row}>
                 <Text style={{ flex: 1 }}>
                   {it.link ? <Link src={it.link} style={{ color: colors.itemTitleColor, textDecoration: "none" }}>{titleText}</Link> : titleText}
-                  {inline ? <Text style={F("subtitle")}> {it.subtitle}</Text> : null}
+                  {isInline && hasSub1 ? <Text style={F("subtitle")}> {it.subtitle}</Text> : null}
+                  {isInline && hasSub1 && hasSub2 ? <Text style={F("subtitle")}>{titleSeparator(sep)}</Text> : null}
+                  {isInline && hasSub2 ? <Text style={F("subtitle")}> {it.subtitle2}</Text> : null}
                 </Text>
                 {it.date ? <Text style={{ color: "#555555", marginLeft: 10, ...F("date") }}>{it.date}</Text> : null}
               </View>
-              {!inline && it.subtitle ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</Text> : null}
+              {!isInline && hasSub1 ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</Text> : null}
+              {!isInline && hasSub2 ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle2}</Text> : null}
             </>
           );
           const itemStyle = index === sec.items.length - 1 ? { marginBottom: 0 } : s.item;

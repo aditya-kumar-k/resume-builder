@@ -162,17 +162,24 @@ export function Preview({ r }: { r: Resume }) {
               </ul>
             );
           const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
+          const hasSub1 = !!it.subtitle;
+          const hasSub2 = !!it.subtitle2;
+          const hasAnySub = hasSub1 || hasSub2;
+          const sep = sec.separator;
           const head = (
             <>
               {index === 0 ? h : null}
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span>
-                  <span style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{title}{isInline && it.subtitle ? titleSeparator(sec.separator) : ""}</span>
-                  {isInline && it.subtitle ? <span style={F("subtitle")}> {it.subtitle}</span> : null}
+                  <span style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{title}{isInline && hasAnySub ? titleSeparator(sep) : ""}</span>
+                  {isInline && hasSub1 ? <span style={F("subtitle")}> {it.subtitle}</span> : null}
+                  {isInline && hasSub1 && hasSub2 ? <span style={F("subtitle")}>{titleSeparator(sep)}</span> : null}
+                  {isInline && hasSub2 ? <span style={F("subtitle")}> {it.subtitle2}</span> : null}
                 </span>
                 <span style={{ color: "#555", whiteSpace: "nowrap", ...F("date") }}>{it.date}</span>
               </div>
-              {!isInline && it.subtitle ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</div> : null}
+              {!isInline && hasSub1 ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</div> : null}
+              {!isInline && hasSub2 ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle2}</div> : null}
             </>
           );
           // Short entries stay whole; long ones may split, but the heading, title line and first bullet stay together.

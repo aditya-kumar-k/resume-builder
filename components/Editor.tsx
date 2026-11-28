@@ -268,8 +268,8 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
       {sec.subtitleInline && (
         <Field
           label="Separator between title and subtitle (empty = none)"
-          value={sec.separator ?? ","}
-          placeholder="e.g.  ,  |  –  •  /"
+          value={sec.separator ?? ""}
+          placeholder="e.g.  ,  |  –  •  /  (leave empty for none)"
           onChange={(v) => onChange({ ...sec, separator: v })}
         />
       )}
@@ -282,7 +282,10 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
           </summary>
           <div className="entry-body">
             <Field label="Title" value={it.title} onChange={(v) => setItem(it.id, { title: v })} />
-            <Field label="Subtitle" value={it.subtitle} onChange={(v) => setItem(it.id, { subtitle: v })} />
+            <div className="two">
+              <Field label="Subtitle" value={it.subtitle} onChange={(v) => setItem(it.id, { subtitle: v })} />
+              <Field label="Subtitle 2 (optional)" value={it.subtitle2 ?? ""} onChange={(v) => setItem(it.id, { subtitle2: v })} />
+            </div>
             <label className="field"><span>Subtitle position</span>
               <select
                 value={it.subtitleInline === undefined ? "" : it.subtitleInline ? "inline" : "below"}

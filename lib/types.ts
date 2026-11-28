@@ -12,6 +12,8 @@ export type Item = {
   id: string;
   title: string;
   subtitle: string;
+  /** Optional second subtitle (e.g. project details, tech stack, or secondary affiliation) */
+  subtitle2?: string;
   /** Shown at the right edge: dates, place or both. */
   date: string;
   /** Makes the title a clickable link. */

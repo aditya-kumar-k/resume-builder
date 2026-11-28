@@ -127,10 +127,16 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
     for (const it of sec.items) {
       const itemAlign = toDocxAlign(it.align ?? sec.textAlign ?? "left");
       const isInline = it.subtitleInline !== undefined ? it.subtitleInline : sec.subtitleInline;
-      const inline = isInline && !!it.subtitle;
-      const titleRun = run(`${it.title}${inline ? titleSeparator(sec.separator) : ""}`, "itemTitle", { color: itemTitleColor });
+      const hasSub1 = !!it.subtitle;
+      const hasSub2 = !!it.subtitle2;
+      const hasAnySub = hasSub1 || hasSub2;
+      const inline = isInline && hasAnySub;
+      const sep = sec.separator;
+      const titleRun = run(`${it.title}${inline ? titleSeparator(sep) : ""}`, "itemTitle", { color: itemTitleColor });
       const left: ParagraphChild[] = [it.link ? new ExternalHyperlink({ link: it.link, children: [titleRun] }) : titleRun];
-      if (inline) left.push(run(` ${it.subtitle}`, "subtitle"));
+      if (isInline && hasSub1) left.push(run(` ${it.subtitle}`, "subtitle"));
+      if (isInline && hasSub1 && hasSub2) left.push(run(titleSeparator(sep), "subtitle"));
+      if (isInline && it.subtitle2) left.push(run(` ${it.subtitle2}`, "subtitle"));
       if (it.date) left.push(run(`\t${it.date}`, "date", { color: "555555" }));
       body.push(
         new Paragraph({
@@ -140,7 +146,8 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
           children: left,
         }),
       );
-      if (!inline && it.subtitle) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle, "subtitle")] }));
+      if (!isInline && hasSub1) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle, "subtitle")] }));
+      if (!isInline && it.subtitle2) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle2, "subtitle")] }));
       for (const b of bulletLines(it.bullets)) {
         const runs = parseLineRuns(b);
         const children: ParagraphChild[] = runs.map((r) => {

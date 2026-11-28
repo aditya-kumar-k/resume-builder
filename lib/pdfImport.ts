@@ -381,6 +381,7 @@ export function compileResumeFromDraft(draft: ParseDraft, baseResume: Resume = d
             id: uid(),
             title: title || trimmed,
             subtitle,
+            subtitle2: "",
             date,
             link: "",
             bullets: "",
@@ -391,6 +392,8 @@ export function compileResumeFromDraft(draft: ParseDraft, baseResume: Resume = d
             currentItem.bullets = currentItem.bullets ? `${currentItem.bullets}\n${bulletText}` : bulletText;
           } else if (!currentItem.subtitle && !currentItem.bullets) {
             currentItem.subtitle = trimmed;
+          } else if (!currentItem.subtitle2 && !currentItem.bullets) {
+            currentItem.subtitle2 = trimmed;
           } else {
             currentItem.bullets = currentItem.bullets ? `${currentItem.bullets}\n${trimmed}` : trimmed;
           }
@@ -407,7 +410,7 @@ export function compileResumeFromDraft(draft: ParseDraft, baseResume: Resume = d
         title: sec.title,
         visible: true,
         subtitleInline: true,
-        separator: ",",
+        separator: "",
         items,
       });
     }

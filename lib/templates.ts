@@ -72,9 +72,10 @@ export function headerItems(r: Resume): HeaderItem[] {
   return items;
 }
 
-/** The symbol stuck to the end of an inline title. Punctuation joins directly ("Title,"); other symbols get a space ("Title |"). */
+/** The symbol stuck to the end of an inline title. Punctuation joins directly ("Title,"); other symbols get a space ("Title |"). Empty string means no separator. */
 export const titleSeparator = (sep: string | undefined) => {
-  const s = (sep ?? ",").trim();
+  if (sep === undefined) return "";
+  const s = sep.trim();
   if (!s) return "";
   return /^[,;:.]$/.test(s) ? s : ` ${s}`;
 };
@@ -90,7 +91,7 @@ export const newSection = (type: SectionType): Section => {
   const base = { id: uid(), visible: true };
   if (type === "text") return { ...base, type, title: "Summary", body: "" };
   if (type === "skills") return { ...base, type, title: "Skills", groups: [{ id: uid(), label: "Group", items: "" }] };
-  return { ...base, type, title: "Experience", subtitleInline: true, separator: ",", items: [] };
+  return { ...base, type, title: "Experience", subtitleInline: true, separator: "", items: [] };
 };
 
-export const newItem = () => ({ id: uid(), title: "", subtitle: "", date: "", link: "", bullets: "" });
+export const newItem = () => ({ id: uid(), title: "", subtitle: "", subtitle2: "", date: "", link: "", bullets: "" });
