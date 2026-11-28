@@ -5,6 +5,17 @@ import { defaultResume } from "@/lib/default";
 import { downloadBlob, safeName } from "@/lib/download";
 import { FONTS, FONT_IDS, FONT_ROLES } from "@/lib/fonts";
 import { ICONS } from "@/lib/icons";
+import {
+  initResumes,
+  saveResumeDoc,
+  deleteResumeDoc,
+  loadResume,
+  saveResumeManifest,
+  setActiveResumeId,
+  exportResumeJson,
+  parseImportedJson,
+} from "@/lib/storage";
+import type { ResumeMetadata } from "@/lib/storage";
 import { TEMPLATES, newItem, newSection, resolveColors, uid } from "@/lib/templates";
 import type { ContactKey, EntriesSection, FontId, FontRole, HeaderOptions, Item, Resume, Section, SectionType, SkillsSection, Style, TemplateId, TextAlign, TextSection } from "@/lib/types";
 import { Preview } from "./Preview";
@@ -183,6 +194,43 @@ function DownIcon() {
   );
 }
 
+function PlusIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <line x1="12" y1="5" x2="12" y2="19" />
+      <line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <rect width="13" height="13" x="8" y="8" rx="2" ry="2" />
+      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+    </svg>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
+      <path d="m15 5 4 4" />
+    </svg>
+  );
+}
+
+function TrashIcon() {
+  return (
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M3 6h18" />
+      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+    </svg>
+  );
+}
+
 const move = <T,>(list: T[], from: number, to: number) => {
   const next = [...list];
   const [item] = next.splice(from, 1);
@@ -320,6 +368,8 @@ function SkillsEditor({ sec, onChange }: { sec: SkillsSection; onChange: (s: Ski
 }
 
 export function Editor() {
+  const [resumes, setResumes] = useState<ResumeMetadata[]>([]);
+  const [activeId, setActiveId] = useState<string>("");
   const [r, setR] = useState<Resume>(defaultResume);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<"" | "pdf" | "docx" | "both">("");
@@ -329,22 +379,17 @@ export function Editor() {
   const wrap = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(KEY);
-      if (saved) {
-        const p = JSON.parse(saved) as Partial<Resume>;
-        setR({ ...defaultResume, ...p, style: { ...defaultResume.style, ...p.style }, header: { ...defaultResume.header, ...p.header } });
-      }
-    } catch {}
+    const { list, activeId: initId, activeResume } = initResumes();
+    setResumes(list);
+    setActiveId(initId);
+    setR(activeResume);
     setLoaded(true);
   }, []);
 
   useEffect(() => {
-    if (!loaded) return;
-    try {
-      localStorage.setItem(KEY, JSON.stringify(r));
-    } catch {}
-  }, [r, loaded]);
+    if (!loaded || !activeId) return;
+    saveResumeDoc(activeId, r);
+  }, [r, activeId, loaded]);
 
   useEffect(() => {
     const el = wrap.current;
@@ -355,6 +400,128 @@ export function Editor() {
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+
+  const switchResume = (targetId: string) => {
+    if (targetId === activeId) return;
+    saveResumeDoc(activeId, r);
+    const doc = loadResume(targetId);
+    if (doc) {
+      setActiveId(targetId);
+      setActiveResumeId(targetId);
+      setR(doc);
+    }
+  };
+
+  const createNewResume = () => {
+    const defaultName = `Resume ${resumes.length + 1}`;
+    const name = window.prompt("Enter a name for the new resume:", defaultName);
+    if (!name || !name.trim()) return;
+    saveResumeDoc(activeId, r);
+    const newId = "r_" + Math.random().toString(36).slice(2, 10);
+    const newMeta: ResumeMetadata = {
+      id: newId,
+      name: name.trim(),
+      updatedAt: Date.now(),
+    };
+    const nextList = [...resumes, newMeta];
+    setResumes(nextList);
+    saveResumeManifest(nextList);
+    setActiveId(newId);
+    setActiveResumeId(newId);
+    setR(defaultResume);
+    saveResumeDoc(newId, defaultResume);
+  };
+
+  const duplicateCurrentResume = () => {
+    const current = resumes.find((x) => x.id === activeId);
+    const defaultName = `${current?.name || "Resume"} (Copy)`;
+    const name = window.prompt("Enter a name for the duplicate resume:", defaultName);
+    if (!name || !name.trim()) return;
+    saveResumeDoc(activeId, r);
+    const newId = "r_" + Math.random().toString(36).slice(2, 10);
+    const clone: Resume = JSON.parse(JSON.stringify(r));
+    clone.sections = clone.sections.map((s) => ({
+      ...s,
+      id: uid(),
+      ...(s.type === "skills" ? { groups: s.groups.map((g) => ({ ...g, id: uid() })) } : {}),
+      ...(s.type === "entries" ? { items: s.items.map((it) => ({ ...it, id: uid() })) } : {}),
+    }));
+    const newMeta: ResumeMetadata = {
+      id: newId,
+      name: name.trim(),
+      updatedAt: Date.now(),
+    };
+    const nextList = [...resumes, newMeta];
+    setResumes(nextList);
+    saveResumeManifest(nextList);
+    setActiveId(newId);
+    setActiveResumeId(newId);
+    setR(clone);
+    saveResumeDoc(newId, clone);
+  };
+
+  const renameCurrentResume = () => {
+    const current = resumes.find((x) => x.id === activeId);
+    if (!current) return;
+    const name = window.prompt("Rename resume:", current.name);
+    if (!name || !name.trim() || name.trim() === current.name) return;
+    const nextList = resumes.map((item) =>
+      item.id === activeId ? { ...item, name: name.trim(), updatedAt: Date.now() } : item
+    );
+    setResumes(nextList);
+    saveResumeManifest(nextList);
+  };
+
+  const deleteCurrentResume = () => {
+    if (resumes.length <= 1) return;
+    const current = resumes.find((x) => x.id === activeId);
+    if (!window.confirm(`Are you sure you want to delete "${current?.name || "this resume"}"?`)) return;
+    deleteResumeDoc(activeId);
+    const nextList = resumes.filter((item) => item.id !== activeId);
+    const nextActive = nextList[0];
+    setResumes(nextList);
+    saveResumeManifest(nextList);
+    setActiveId(nextActive.id);
+    setActiveResumeId(nextActive.id);
+    const nextDoc = loadResume(nextActive.id) || defaultResume;
+    setR(nextDoc);
+  };
+
+  const handleExportJson = () => {
+    const current = resumes.find((x) => x.id === activeId);
+    exportResumeJson(current?.name || "resume", r);
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      const parsed = parseImportedJson(text);
+      if (!parsed) {
+        alert("Invalid resume JSON file format.");
+        return;
+      }
+      saveResumeDoc(activeId, r);
+      const fileName = file.name.replace(/\.resume\.json$/i, "").replace(/\.json$/i, "");
+      const newId = "r_" + Math.random().toString(36).slice(2, 10);
+      const newMeta: ResumeMetadata = {
+        id: newId,
+        name: fileName || "Imported Resume",
+        updatedAt: Date.now(),
+      };
+      const nextList = [...resumes, newMeta];
+      setResumes(nextList);
+      saveResumeManifest(nextList);
+      setActiveId(newId);
+      setActiveResumeId(newId);
+      setR(parsed);
+      saveResumeDoc(newId, parsed);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   const set = <K extends keyof Resume>(key: K, value: Resume[K]) => setR((prev) => ({ ...prev, [key]: value }));
   const setStyle = (patch: Partial<Style>) => setR((prev) => ({ ...prev, style: { ...prev.style, ...patch } }));
@@ -402,6 +569,66 @@ export function Editor() {
           <div className="brand-title-wrap">
             <h1>Resume Builder</h1>
             <span className="brand-pill">Client-side · Private</span>
+          </div>
+        </div>
+
+        <div className="resume-manager-card">
+          <div className="resume-manager-header">
+            <span className="resume-manager-label">SAVED RESUMES</span>
+            <span className="resume-count-badge">{resumes.length} saved</span>
+          </div>
+          <div className="resume-select-row">
+            <select
+              className="resume-select"
+              value={activeId}
+              onChange={(e) => switchResume(e.target.value)}
+              title="Switch active resume"
+            >
+              {resumes.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name}
+                </option>
+              ))}
+            </select>
+            <div className="resume-actions-group">
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={createNewResume}
+                title="Create new blank resume"
+                aria-label="New resume"
+              >
+                <PlusIcon />
+              </button>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={duplicateCurrentResume}
+                title="Duplicate current resume as a copy"
+                aria-label="Duplicate resume"
+              >
+                <CopyIcon />
+              </button>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={renameCurrentResume}
+                title="Rename current resume"
+                aria-label="Rename resume"
+              >
+                <PencilIcon />
+              </button>
+              <button
+                type="button"
+                className="btn-icon danger"
+                onClick={deleteCurrentResume}
+                disabled={resumes.length <= 1}
+                title={resumes.length <= 1 ? "Cannot delete the only resume" : "Delete current resume"}
+                aria-label="Delete resume"
+              >
+                <TrashIcon />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -702,6 +929,15 @@ export function Editor() {
           </div>
           {error && <p role="alert" className="err">{error}</p>}
           <p className="hint">Word uses one simple column so applicant systems read it cleanly. Everything stays in your browser.</p>
+          <div className="backup-row">
+            <button type="button" className="btn-subtle" onClick={handleExportJson} title="Save a .json backup file of this resume">
+              Backup (.json)
+            </button>
+            <label className="btn-subtle file-btn" title="Restore a resume from a .json backup">
+              Restore (.json)
+              <input type="file" accept=".json" onChange={handleImportJson} style={{ display: "none" }} />
+            </label>
+          </div>
         </section>
       </aside>
 

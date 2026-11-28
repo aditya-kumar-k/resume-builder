@@ -77,10 +77,92 @@ body { margin: 0; background: var(--bg); color: var(--ink); font: 13.5px/1.45 -a
 }
 
 /* Brand header */
-.brand-header { margin-bottom: 16px; }
+.brand-header { margin-bottom: 12px; }
 .brand-title-wrap { display: flex; align-items: center; justify-content: space-between; }
 .brand-header h1 { font-size: 17px; font-weight: 700; margin: 0; letter-spacing: -0.01em; color: var(--ink); }
 .brand-pill { font-size: 10.5px; font-weight: 500; color: var(--muted); border: 1px solid var(--line); padding: 2px 7px; border-radius: 999px; }
+
+/* Resumes Manager Bar */
+.resume-manager-card {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  background: var(--panel-card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+
+.resume-manager-card:hover {
+  border-color: var(--line-hover);
+}
+
+.resume-manager-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.resume-manager-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.resume-count-badge {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--badge-bg);
+  color: var(--muted);
+}
+
+.resume-select-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.resume-select {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: var(--input-bg);
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+
+.resume-actions-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.backup-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--line);
+}
+
+.file-btn {
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  user-select: none;
+}
 
 /* Section head */
 .section-head-bar { display: flex; align-items: center; justify-content: space-between; margin: 26px 0 10px; }
