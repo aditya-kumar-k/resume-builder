@@ -16,6 +16,7 @@ import {
   parseImportedJson,
 } from "@/lib/storage";
 import type { ResumeMetadata } from "@/lib/storage";
+import type { HeaderDraft, MappedSectionDraft, ParseDraft } from "@/lib/pdfImport";
 import { TEMPLATES, newItem, newSection, resolveColors, uid } from "@/lib/templates";
 import type { ContactKey, EntriesSection, FontId, FontRole, HeaderOptions, Item, Resume, Section, SectionType, SkillsSection, Style, TemplateId, TextAlign, TextSection } from "@/lib/types";
 import { Preview } from "./Preview";
@@ -373,6 +374,9 @@ export function Editor() {
   const [r, setR] = useState<Resume>(defaultResume);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState<"" | "pdf" | "docx" | "both">("");
+  const [importingPdf, setImportingPdf] = useState(false);
+  const [pdfDraft, setPdfDraft] = useState<ParseDraft | null>(null);
+  const [draftFileName, setDraftFileName] = useState("");
   const [error, setError] = useState("");
   const [scale, setScale] = useState(0.8);
   const [newType, setNewType] = useState<SectionType>("entries");
@@ -523,6 +527,97 @@ export function Editor() {
     e.target.value = "";
   };
 
+  const handleImportPdf = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportingPdf(true);
+    setError("");
+
+    try {
+      const buffer = await file.arrayBuffer();
+      const { extractPdfLines, parseDraftFromLines } = await import("@/lib/pdfImport");
+      const lines = await extractPdfLines(buffer);
+      if (!lines.length) {
+        throw new Error("Could not extract any readable text from this PDF. It may be a scanned image.");
+      }
+      const draft = parseDraftFromLines(lines);
+      setPdfDraft(draft);
+      setDraftFileName(file.name.replace(/\.pdf$/i, "").trim());
+    } catch (err: any) {
+      setError(err?.message || "Failed to parse PDF. Please try another file.");
+    } finally {
+      setImportingPdf(false);
+      e.target.value = "";
+    }
+  };
+
+  const updateDraftHeader = (patch: Partial<HeaderDraft>) => {
+    if (!pdfDraft) return;
+    setPdfDraft({ ...pdfDraft, header: { ...pdfDraft.header, ...patch } });
+  };
+
+  const updateDraftSection = (id: string, patch: Partial<MappedSectionDraft>) => {
+    if (!pdfDraft) return;
+    setPdfDraft({
+      ...pdfDraft,
+      sections: pdfDraft.sections.map((s) => (s.id === id ? { ...s, ...patch } : s)),
+    });
+  };
+
+  const removeDraftSection = (id: string) => {
+    if (!pdfDraft) return;
+    setPdfDraft({
+      ...pdfDraft,
+      sections: pdfDraft.sections.filter((s) => s.id !== id),
+    });
+  };
+
+  const addEmptyDraftSection = () => {
+    if (!pdfDraft) return;
+    setPdfDraft({
+      ...pdfDraft,
+      sections: [
+        ...pdfDraft.sections,
+        {
+          id: uid(),
+          title: "New Section",
+          type: "entries",
+          lines: [],
+        },
+      ],
+    });
+  };
+
+  const applyDraftToBuilder = async () => {
+    if (!pdfDraft) return;
+    try {
+      const { compileResumeFromDraft } = await import("@/lib/pdfImport");
+      const parsed = compileResumeFromDraft(pdfDraft);
+
+      const resumeName = parsed.name
+        ? `${parsed.name}'s Resume (PDF)`
+        : draftFileName || "Imported Resume";
+
+      saveResumeDoc(activeId, r);
+      const newId = "r_" + Math.random().toString(36).slice(2, 10);
+      const newMeta: ResumeMetadata = {
+        id: newId,
+        name: resumeName,
+        updatedAt: Date.now(),
+      };
+      const nextList = [...resumes, newMeta];
+      setResumes(nextList);
+      saveResumeManifest(nextList);
+      setActiveId(newId);
+      setActiveResumeId(newId);
+      setR(parsed);
+      saveResumeDoc(newId, parsed);
+      setPdfDraft(null);
+    } catch (err: any) {
+      setError(err?.message || "Failed to apply imported sections.");
+    }
+  };
+
   const set = <K extends keyof Resume>(key: K, value: Resume[K]) => setR((prev) => ({ ...prev, [key]: value }));
   const setStyle = (patch: Partial<Style>) => setR((prev) => ({ ...prev, style: { ...prev.style, ...patch } }));
   const setSection = (next: Section) => setR((prev) => ({ ...prev, sections: prev.sections.map((s) => (s.id === next.id ? next : s)) }));
@@ -575,7 +670,19 @@ export function Editor() {
         <div className="resume-manager-card">
           <div className="resume-manager-header">
             <span className="resume-manager-label">SAVED RESUMES</span>
-            <span className="resume-count-badge">{resumes.length} saved</span>
+            <div className="resume-header-actions">
+              <label className="btn-import-pdf" title="Import an existing resume from a PDF file">
+                {importingPdf ? "Parsing…" : "Import PDF"}
+                <input
+                  type="file"
+                  accept=".pdf"
+                  disabled={importingPdf}
+                  onChange={handleImportPdf}
+                  style={{ display: "none" }}
+                />
+              </label>
+              <span className="resume-count-badge">{resumes.length} saved</span>
+            </div>
           </div>
           <div className="resume-select-row">
             <select
@@ -930,6 +1037,10 @@ export function Editor() {
           {error && <p role="alert" className="err">{error}</p>}
           <p className="hint">Word uses one simple column so applicant systems read it cleanly. Everything stays in your browser.</p>
           <div className="backup-row">
+            <label className="btn-subtle file-btn" title="Import an existing resume from a PDF file">
+              {importingPdf ? "Parsing PDF…" : "Import PDF"}
+              <input type="file" accept=".pdf" disabled={importingPdf} onChange={handleImportPdf} style={{ display: "none" }} />
+            </label>
             <button type="button" className="btn-subtle" onClick={handleExportJson} title="Save a .json backup file of this resume">
               Backup (.json)
             </button>
@@ -946,6 +1057,150 @@ export function Editor() {
           <Preview r={r} />
         </div>
       </main>
+
+      {pdfDraft && (
+        <div className="modal-backdrop">
+          <div className="modal-content">
+            <div className="modal-header">
+              <div>
+                <h3>Review & Map PDF Sections</h3>
+                <p className="modal-subtitle">
+                  Verify detected sections and choose how each section should be formatted in the builder.
+                </p>
+              </div>
+              <button
+                type="button"
+                className="btn-icon"
+                onClick={() => setPdfDraft(null)}
+                title="Cancel"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="modal-body">
+              <div className="draft-header-section">
+                <span className="field-group-title">Contact & Header</span>
+                <div className="two">
+                  <label className="field">
+                    <span>Full Name</span>
+                    <input
+                      type="text"
+                      value={pdfDraft.header.name}
+                      onChange={(e) => updateDraftHeader({ name: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Occupation / Title</span>
+                    <input
+                      type="text"
+                      value={pdfDraft.header.title}
+                      onChange={(e) => updateDraftHeader({ title: e.target.value })}
+                    />
+                  </label>
+                </div>
+                <div className="two">
+                  <label className="field">
+                    <span>Email</span>
+                    <input
+                      type="text"
+                      value={pdfDraft.header.email}
+                      onChange={(e) => updateDraftHeader({ email: e.target.value })}
+                    />
+                  </label>
+                  <label className="field">
+                    <span>Phone</span>
+                    <input
+                      type="text"
+                      value={pdfDraft.header.phone}
+                      onChange={(e) => updateDraftHeader({ phone: e.target.value })}
+                    />
+                  </label>
+                </div>
+              </div>
+
+              <div className="draft-sections-list">
+                <div className="draft-sections-head">
+                  <span className="field-group-title">Sections ({pdfDraft.sections.length})</span>
+                  <button
+                    type="button"
+                    className="btn-subtle"
+                    onClick={addEmptyDraftSection}
+                  >
+                    + Add Section
+                  </button>
+                </div>
+
+                {pdfDraft.sections.map((sec) => (
+                  <div key={sec.id} className={`draft-section-item ${sec.type === "skip" ? "skipped" : ""}`}>
+                    <div className="draft-section-row">
+                      <input
+                        type="text"
+                        className="draft-section-title"
+                        value={sec.title}
+                        placeholder="Section Title (e.g. Projects, Skills)"
+                        onChange={(e) => updateDraftSection(sec.id, { title: e.target.value })}
+                      />
+                      <select
+                        className="draft-section-type"
+                        value={sec.type}
+                        onChange={(e) => updateDraftSection(sec.id, { type: e.target.value as any })}
+                      >
+                        <option value="entries">Entries (Projects, Experience, Education)</option>
+                        <option value="skills">Skills (Grouped / Categorized)</option>
+                        <option value="text">Text (Summary, About)</option>
+                        <option value="skip">Skip / Don't Import</option>
+                      </select>
+                      <button
+                        type="button"
+                        className="btn-icon danger"
+                        title="Remove this section"
+                        onClick={() => removeDraftSection(sec.id)}
+                      >
+                        <TrashIcon />
+                      </button>
+                    </div>
+
+                    {sec.type !== "skip" && (
+                      <div className="draft-section-preview">
+                        <div className="draft-preview-lines">
+                          {sec.lines.slice(0, 4).map((line, li) => (
+                            <div key={li} className="draft-line-snippet">
+                              {line}
+                            </div>
+                          ))}
+                          {sec.lines.length > 4 && (
+                            <div className="draft-line-snippet more">
+                              + {sec.lines.length - 4} more lines
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="secondary"
+                onClick={() => setPdfDraft(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="primary"
+                onClick={applyDraftToBuilder}
+              >
+                Apply to Builder
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
