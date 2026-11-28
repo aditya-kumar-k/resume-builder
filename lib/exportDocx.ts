@@ -48,6 +48,23 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
     });
   };
 
+  const runsToDocx = (text: string, role: FontRole, baseOpts: { size?: number; color?: string } = {}): ParagraphChild[] => {
+    const parsed = parseLineRuns(text);
+    return parsed.map((r) => {
+      if (r.text === "\n") return new TextRun({ break: 1 });
+      const isBold = r.bold ?? (variantOf(role) === "bold");
+      const isItalic = r.italic ?? (variantOf(role) === "italic");
+      const t = run(r.text, role, {
+        bold: isBold,
+        italics: isItalic,
+        underline: r.underline,
+        size: baseOpts.size,
+        color: baseOpts.color,
+      });
+      return r.href ? new ExternalHyperlink({ link: r.href, children: [t] }) : t;
+    });
+  };
+
   /** Without its line a heading is plain text; the "bar" style has no bar left, so it reads as bold text. */
   const heading = (text: string, rule: boolean, below: number) =>
     new Paragraph({
@@ -132,11 +149,24 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
       const hasAnySub = hasSub1 || hasSub2;
       const inline = isInline && hasAnySub;
       const sep = sec.separator;
-      const titleRun = run(`${it.title}${inline ? titleSeparator(sep) : ""}`, "itemTitle", { color: itemTitleColor });
-      const left: ParagraphChild[] = [it.link ? new ExternalHyperlink({ link: it.link, children: [titleRun] }) : titleRun];
-      if (isInline && hasSub1) left.push(run(` ${it.subtitle}`, "subtitle"));
+      const titleChildren = runsToDocx(it.title, "itemTitle", { color: itemTitleColor });
+      if (inline && titleSeparator(sep)) {
+        titleChildren.push(run(titleSeparator(sep), "itemTitle", { color: itemTitleColor }));
+      }
+      const left: ParagraphChild[] = [
+        ...(it.link
+          ? [new ExternalHyperlink({ link: it.link, children: titleChildren })]
+          : titleChildren),
+      ];
+      if (isInline && hasSub1) {
+        left.push(run(" ", "subtitle"));
+        left.push(...runsToDocx(it.subtitle, "subtitle"));
+      }
       if (isInline && hasSub1 && hasSub2) left.push(run(titleSeparator(sep), "subtitle"));
-      if (isInline && it.subtitle2) left.push(run(` ${it.subtitle2}`, "subtitle"));
+      if (isInline && it.subtitle2) {
+        left.push(run(" ", "subtitle"));
+        left.push(...runsToDocx(it.subtitle2, "subtitle"));
+      }
       if (it.date) left.push(run(`\t${it.date}`, "date", { color: "555555" }));
       body.push(
         new Paragraph({
@@ -146,8 +176,8 @@ export async function createDocxBlob(r: Resume): Promise<Blob> {
           children: left,
         }),
       );
-      if (!isInline && hasSub1) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle, "subtitle")] }));
-      if (!isInline && it.subtitle2) body.push(new Paragraph({ alignment: itemAlign, children: [run(it.subtitle2, "subtitle")] }));
+      if (!isInline && hasSub1) body.push(new Paragraph({ alignment: itemAlign, children: runsToDocx(it.subtitle, "subtitle") }));
+      if (!isInline && it.subtitle2) body.push(new Paragraph({ alignment: itemAlign, children: runsToDocx(it.subtitle2, "subtitle") }));
       for (const b of bulletLines(it.bullets)) {
         const runs = parseLineRuns(b);
         const children: ParagraphChild[] = runs.map((r) => {

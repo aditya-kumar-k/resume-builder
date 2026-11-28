@@ -25,19 +25,24 @@ const KEY = "resume-builder:v2";
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function applyTag(
-  textarea: HTMLTextAreaElement,
+  target: HTMLInputElement | HTMLTextAreaElement,
   tag: "b" | "i" | "u",
   currentValue: string,
   onChange: (val: string) => void
 ) {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
+  let start = target.selectionStart ?? 0;
+  let end = target.selectionEnd ?? 0;
   const openTag = `<${tag}>`;
   const closeTag = `</${tag}>`;
   const openLen = openTag.length;
   const closeLen = closeTag.length;
 
-  const selectedText = currentValue.substring(start, end);
+  let selectedText = currentValue.substring(start, end);
+  if (selectedText.length === 0 && currentValue.length > 0 && target.tagName === "INPUT") {
+    start = 0;
+    end = currentValue.length;
+    selectedText = currentValue;
+  }
 
   const isAlreadyWrapped =
     (selectedText.startsWith(openTag) && selectedText.endsWith(closeTag)) ||
@@ -79,8 +84,8 @@ function applyTag(
   onChange(nextValue);
 
   requestAnimationFrame(() => {
-    textarea.focus();
-    textarea.setSelectionRange(nextStart, nextEnd);
+    target.focus();
+    target.setSelectionRange(nextStart, nextEnd);
   });
 }
 
@@ -91,33 +96,43 @@ function Field(props: {
   area?: boolean;
   rows?: number;
   placeholder?: string;
+  toolbar?: boolean;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const getTarget = (): HTMLInputElement | HTMLTextAreaElement | null => {
+    return props.area ? textareaRef.current : inputRef.current;
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     if (e.ctrlKey || e.metaKey) {
       const k = e.key.toLowerCase();
       if (k === "b" || k === "i" || k === "u") {
         e.preventDefault();
         e.stopPropagation();
-        if (textareaRef.current) {
-          applyTag(textareaRef.current, k as "b" | "i" | "u", props.value, props.onChange);
+        const target = getTarget();
+        if (target) {
+          applyTag(target, k as "b" | "i" | "u", props.value, props.onChange);
         }
       }
     }
   };
 
   const handleToolbarClick = (tag: "b" | "i" | "u") => {
-    if (textareaRef.current) {
-      applyTag(textareaRef.current, tag, props.value, props.onChange);
+    const target = getTarget();
+    if (target) {
+      applyTag(target, tag, props.value, props.onChange);
     }
   };
+
+  const showToolbar = props.area || props.toolbar;
 
   return (
     <div className="field">
       <div className="field-head">
         <span>{props.label}</span>
-        {props.area && (
+        {showToolbar && (
           <div className="format-toolbar">
             <button
               type="button"
@@ -165,7 +180,13 @@ function Field(props: {
           onKeyDown={handleKeyDown}
         />
       ) : (
-        <input value={props.value} placeholder={props.placeholder} onChange={(e) => props.onChange(e.target.value)} />
+        <input
+          ref={inputRef}
+          value={props.value}
+          placeholder={props.placeholder}
+          onChange={(e) => props.onChange(e.target.value)}
+          onKeyDown={handleKeyDown}
+        />
       )}
     </div>
   );
@@ -277,7 +298,7 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
         <details className="card entry" key={it.id} open={it.id === fresh}>
           <summary className="entry-summary">
             <Chevron />
-            <span className="entry-title">{it.title || "Untitled entry"}</span>
+            <span className="entry-title">{it.title.replace(/<[^>]*>/g, "").replace(/\*\*|__/g, "").trim() || "Untitled entry"}</span>
             {it.date ? <span className="entry-date">{it.date}</span> : null}
             <span className="mv">
               <button
@@ -311,10 +332,10 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
             </span>
           </summary>
           <div className="entry-body">
-            <Field label="Title" value={it.title} onChange={(v) => setItem(it.id, { title: v })} />
+            <Field label="Title" value={it.title} toolbar onChange={(v) => setItem(it.id, { title: v })} />
             <div className="two">
-              <Field label="Subtitle" value={it.subtitle} onChange={(v) => setItem(it.id, { subtitle: v })} />
-              <Field label="Subtitle 2 (optional)" value={it.subtitle2 ?? ""} onChange={(v) => setItem(it.id, { subtitle2: v })} />
+              <Field label="Subtitle" value={it.subtitle} toolbar onChange={(v) => setItem(it.id, { subtitle: v })} />
+              <Field label="Subtitle 2 (optional)" value={it.subtitle2 ?? ""} toolbar onChange={(v) => setItem(it.id, { subtitle2: v })} />
             </div>
             <label className="field"><span>Subtitle position</span>
               <select

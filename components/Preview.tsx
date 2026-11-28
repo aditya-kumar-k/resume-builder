@@ -2,7 +2,7 @@
 import { useLayoutEffect, useRef } from "react";
 import type { CSSProperties, ReactNode } from "react";
 import type { Resume, Section } from "@/lib/types";
-import { cssFont } from "@/lib/fonts";
+import { cssFont, variantOf } from "@/lib/fonts";
 import { sectionIconId } from "@/lib/icons";
 import { TEMPLATES, bulletLines, headerItems, headingGapOf, resolveColors, showHeadingRule, titleSeparator } from "@/lib/templates";
 import { isShortBlock, parseLineRuns, parseRich } from "@/lib/richtext";
@@ -86,6 +86,24 @@ export function Preview({ r }: { r: Resume }) {
       return r.href ? <a key={k} href={r.href} style={{ color: "inherit", textDecoration: "none" }}>{text}</a> : text;
     });
 
+  const renderInlineRich = (text: string, role: Parameters<typeof cssFont>[1], defaultStyle?: CSSProperties): ReactNode => {
+    const runs = parseLineRuns(text);
+    return runs.map((r, k) => {
+      if (r.text === "\n") return <br key={k} />;
+      const isBold = r.bold ?? (variantOf(role) === "bold");
+      const isItalic = r.italic ?? (variantOf(role) === "italic");
+      const style: CSSProperties = {
+        ...F(role),
+        fontWeight: isBold ? 700 : 400,
+        fontStyle: isItalic ? "italic" : "normal",
+        ...(r.underline ? { textDecoration: "underline" } : {}),
+        ...defaultStyle,
+      };
+      const node = <span key={k} style={style}>{r.text}</span>;
+      return r.href ? <a key={k} href={r.href} style={{ color: "inherit", textDecoration: "none" }}>{node}</a> : node;
+    });
+  };
+
   /** One block of the Text section: runs with bold, italic, underline and links, or a bullet row. */
   const richBlock = (blk: Block, index: number, align: CSSProperties["textAlign"] = "left"): ReactNode => {
     const runs = renderRuns(blk.runs);
@@ -148,7 +166,8 @@ export function Preview({ r }: { r: Resume }) {
         {sec.items.map((it, index) => {
           const itemAlign = it.align ?? align;
           const mb = index === sec.items.length - 1 ? 0 : px(6);
-          const title = it.link ? <a href={it.link} style={{ color: "inherit", textDecoration: "none" }}>{it.title}</a> : it.title;
+          const titleContent = renderInlineRich(it.title, "itemTitle", { color: colors.itemTitleColor });
+          const title = it.link ? <a href={it.link} style={{ color: "inherit", textDecoration: "none" }}>{titleContent}</a> : titleContent;
           const bullets = bulletLines(it.bullets);
           const short = bullets.length <= 4;
           const ul = (list: string[]) =>
@@ -172,14 +191,14 @@ export function Preview({ r }: { r: Resume }) {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                 <span>
                   <span style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{title}{isInline && hasAnySub ? titleSeparator(sep) : ""}</span>
-                  {isInline && hasSub1 ? <span style={F("subtitle")}> {it.subtitle}</span> : null}
+                  {isInline && hasSub1 ? <span style={F("subtitle")}> {renderInlineRich(it.subtitle, "subtitle")}</span> : null}
                   {isInline && hasSub1 && hasSub2 ? <span style={F("subtitle")}>{titleSeparator(sep)}</span> : null}
-                  {isInline && hasSub2 ? <span style={F("subtitle")}> {it.subtitle2}</span> : null}
+                  {isInline && hasSub2 ? <span style={F("subtitle")}> {renderInlineRich(it.subtitle2 || "", "subtitle")}</span> : null}
                 </span>
                 <span style={{ color: "#555", whiteSpace: "nowrap", ...F("date") }}>{it.date}</span>
               </div>
-              {!isInline && hasSub1 ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</div> : null}
-              {!isInline && hasSub2 ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle2}</div> : null}
+              {!isInline && hasSub1 ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{renderInlineRich(it.subtitle, "subtitle")}</div> : null}
+              {!isInline && hasSub2 ? <div style={{ textAlign: itemAlign, ...F("subtitle") }}>{renderInlineRich(it.subtitle2 || "", "subtitle")}</div> : null}
             </>
           );
           // Short entries stay whole; long ones may split, but the heading, title line and first bullet stay together.

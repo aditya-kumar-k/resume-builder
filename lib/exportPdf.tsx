@@ -1,7 +1,7 @@
 import React from "react";
 import { Circle, Document, Ellipse, Font, G, Line, Link, Page, Path, Polygon, Polyline, Rect, StyleSheet, Svg, Text, View, pdf } from "@react-pdf/renderer";
-import type { Resume, Section } from "./types";
-import { pdfFontFor, registerPdfFonts } from "./fonts";
+import type { FontRole, Resume, Section } from "./types";
+import { type Variant, pdfFontFor, registerPdfFonts, variantOf } from "./fonts";
 import { ICONS, sectionIconId } from "./icons";
 import { isShortBlock, parseLineRuns, parseRich } from "./richtext";
 import type { Block, Run } from "./richtext";
@@ -86,6 +86,25 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
         return r.href ? <Link key={k} src={r.href} style={{ color: "#1a1a1a", textDecoration: "none" }}>{text}</Link> : text;
       });
 
+    const renderPdfInlineRich = (text: string, role: FontRole, defaultStyle?: any) => {
+      const runs = parseLineRuns(text);
+      return runs.map((r, k) => {
+        const isBold = r.bold ?? (variantOf(role) === "bold");
+        const isItalic = r.italic ?? (variantOf(role) === "italic");
+        const variant: Variant = isBold ? "bold" : isItalic ? "italic" : "regular";
+        const baseFont = pdfFontFor(st, role, variant);
+        const style: any = {
+          ...baseFont,
+          ...(isBold ? { fontWeight: 700 } : { fontWeight: 400 }),
+          ...(isItalic ? { fontStyle: "italic" as const } : { fontStyle: "normal" as const }),
+          ...(r.underline ? { textDecoration: "underline" as const } : {}),
+          ...defaultStyle,
+        };
+        const textNode = <Text key={k} style={style}>{r.text}</Text>;
+        return r.href ? <Link key={k} src={r.href} style={{ color: "inherit", textDecoration: "none" }}>{textNode}</Link> : textNode;
+      });
+    };
+
     if (sec.type === "text") {
       const blocks = parseRich(sec.body);
       if (!blocks.length) return null;
@@ -161,7 +180,12 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
           const hasAnySub = hasSub1 || hasSub2;
           const inline = isInline && hasAnySub;
           const sep = sec.separator;
-          const titleText = <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>{it.title}{inline ? titleSeparator(sep) : ""}</Text>;
+          const titleText = (
+            <Text style={{ ...F("itemTitle"), color: colors.itemTitleColor }}>
+              {renderPdfInlineRich(it.title, "itemTitle", { color: colors.itemTitleColor })}
+              {inline ? titleSeparator(sep) : ""}
+            </Text>
+          );
           const bullets = bulletLines(it.bullets);
           const bullet = (b: string, i: number) => (
             <View key={i} style={s.bullet}>
@@ -177,14 +201,14 @@ export async function createPdfBlob(r: Resume, fontBase = "/fonts/"): Promise<Bl
               <View style={s.row}>
                 <Text style={{ flex: 1 }}>
                   {it.link ? <Link src={it.link} style={{ color: colors.itemTitleColor, textDecoration: "none" }}>{titleText}</Link> : titleText}
-                  {isInline && hasSub1 ? <Text style={F("subtitle")}> {it.subtitle}</Text> : null}
+                  {isInline && hasSub1 ? <Text style={F("subtitle")}> {renderPdfInlineRich(it.subtitle, "subtitle")}</Text> : null}
                   {isInline && hasSub1 && hasSub2 ? <Text style={F("subtitle")}>{titleSeparator(sep)}</Text> : null}
-                  {isInline && hasSub2 ? <Text style={F("subtitle")}> {it.subtitle2}</Text> : null}
+                  {isInline && hasSub2 ? <Text style={F("subtitle")}> {renderPdfInlineRich(it.subtitle2 || "", "subtitle")}</Text> : null}
                 </Text>
                 {it.date ? <Text style={{ color: "#555555", marginLeft: 10, ...F("date") }}>{it.date}</Text> : null}
               </View>
-              {!isInline && hasSub1 ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle}</Text> : null}
-              {!isInline && hasSub2 ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{it.subtitle2}</Text> : null}
+              {!isInline && hasSub1 ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{renderPdfInlineRich(it.subtitle, "subtitle")}</Text> : null}
+              {!isInline && hasSub2 ? <Text style={{ textAlign: itemAlign, ...F("subtitle") }}>{renderPdfInlineRich(it.subtitle2 || "", "subtitle")}</Text> : null}
             </>
           );
           const itemStyle = index === sec.items.length - 1 ? { marginBottom: 0 } : s.item;
