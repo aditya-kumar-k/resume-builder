@@ -279,6 +279,36 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
             <Chevron />
             <span className="entry-title">{it.title || "Untitled entry"}</span>
             {it.date ? <span className="entry-date">{it.date}</span> : null}
+            <span className="mv">
+              <button
+                type="button"
+                className="btn-icon"
+                title="Move entry up"
+                aria-label="Move entry up"
+                disabled={i === 0}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange({ ...sec, items: move(sec.items, i, i - 1) });
+                }}
+              >
+                <UpIcon />
+              </button>
+              <button
+                type="button"
+                className="btn-icon"
+                title="Move entry down"
+                aria-label="Move entry down"
+                disabled={i === sec.items.length - 1}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange({ ...sec, items: move(sec.items, i, i + 1) });
+                }}
+              >
+                <DownIcon />
+              </button>
+            </span>
           </summary>
           <div className="entry-body">
             <Field label="Title" value={it.title} onChange={(v) => setItem(it.id, { title: v })} />
@@ -315,9 +345,9 @@ function EntriesEditor({ sec, onChange }: { sec: EntriesSection; onChange: (s: E
               </select>
             </label>
             <div className="row entry-actions">
-              <button className="btn-subtle" disabled={i === 0} onClick={() => onChange({ ...sec, items: move(sec.items, i, i - 1) })}>↑ Move</button>
-              <button className="btn-subtle" disabled={i === sec.items.length - 1} onClick={() => onChange({ ...sec, items: move(sec.items, i, i + 1) })}>↓ Move</button>
-              <button className="danger btn-subtle" onClick={() => onChange({ ...sec, items: sec.items.filter((x) => x.id !== it.id) })}>Remove</button>
+              <button type="button" className="btn-subtle" disabled={i === 0} onClick={() => onChange({ ...sec, items: move(sec.items, i, i - 1) })}>↑ Move</button>
+              <button type="button" className="btn-subtle" disabled={i === sec.items.length - 1} onClick={() => onChange({ ...sec, items: move(sec.items, i, i + 1) })}>↓ Move</button>
+              <button type="button" className="danger btn-subtle" onClick={() => onChange({ ...sec, items: sec.items.filter((x) => x.id !== it.id) })}>Remove</button>
             </div>
           </div>
         </details>
@@ -354,14 +384,44 @@ function SkillsEditor({ sec, onChange }: { sec: SkillsSection; onChange: (s: Ski
           <summary className="entry-summary">
             <Chevron />
             <span className="entry-title">{g.label || "Untitled group"}</span>
+            <span className="mv">
+              <button
+                type="button"
+                className="btn-icon"
+                title="Move group up"
+                aria-label="Move group up"
+                disabled={i === 0}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange({ ...sec, groups: move(sec.groups, i, i - 1) });
+                }}
+              >
+                <UpIcon />
+              </button>
+              <button
+                type="button"
+                className="btn-icon"
+                title="Move group down"
+                aria-label="Move group down"
+                disabled={i === sec.groups.length - 1}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onChange({ ...sec, groups: move(sec.groups, i, i + 1) });
+                }}
+              >
+                <DownIcon />
+              </button>
+            </span>
           </summary>
           <div className="entry-body">
             <Field label="Group name" value={g.label} onChange={(v) => setGroup(g.id, { label: v })} />
             <Field label="Skills (comma separated)" area value={g.items} onChange={(v) => setGroup(g.id, { items: v })} />
             <div className="row entry-actions">
-              <button className="btn-subtle" disabled={i === 0} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i - 1) })}>↑ Move</button>
-              <button className="btn-subtle" disabled={i === sec.groups.length - 1} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i + 1) })}>↓ Move</button>
-              <button className="danger btn-subtle" onClick={() => onChange({ ...sec, groups: sec.groups.filter((x) => x.id !== g.id) })}>Remove</button>
+              <button type="button" className="btn-subtle" disabled={i === 0} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i - 1) })}>↑ Move</button>
+              <button type="button" className="btn-subtle" disabled={i === sec.groups.length - 1} onClick={() => onChange({ ...sec, groups: move(sec.groups, i, i + 1) })}>↓ Move</button>
+              <button type="button" className="danger btn-subtle" onClick={() => onChange({ ...sec, groups: sec.groups.filter((x) => x.id !== g.id) })}>Remove</button>
             </div>
           </div>
         </details>
